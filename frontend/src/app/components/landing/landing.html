@@ -1,0 +1,158 @@
+<div class="landing">
+
+  <!-- Top bar -->
+  <header class="landing__nav">
+    <div class="landing__nav-inner">
+      <div class="landing__logo">
+        <span class="landing__logo-fed">Fed</span><span class="landing__logo-e">E</span>
+        <span class="landing__logo-tag">Proactive AI Assistant</span>
+      </div>
+      <div class="landing__nav-actions">
+        <a class="landing__nav-link" href="#features">Features</a>
+        <a class="landing__nav-link" href="#how">How it works</a>
+        @if (api.isSignedIn()) {
+          <a class="landing__btn landing__btn--primary" routerLink="/app">Open dashboard</a>
+        } @else {
+          <a class="landing__btn landing__btn--primary" routerLink="/signin">Sign in</a>
+        }
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="landing__hero">
+    <div class="landing__hero-inner">
+      <div class="landing__hero-copy">
+        <span class="landing__pill">FedEx Digithon 2026 &middot; Team Purple Route 31</span>
+        <h1>Customer support that <em>acts</em>, not just answers.</h1>
+        <p class="landing__lede">
+          FedE is an agentic AI assistant for FedEx shipments. Ask in plain language,
+          by text or voice, and it actually tracks, reschedules, redirects and cancels
+          your packages: securely, with your permissions enforced on every step.
+        </p>
+        <div class="landing__cta-row">
+          <button class="landing__btn landing__btn--primary landing__btn--lg" (click)="start()">
+            {{ api.isSignedIn() ? 'Open the dashboard' : 'Try the live demo' }}
+          </button>
+          <a class="landing__btn landing__btn--ghost landing__btn--lg" href="#how">See how it works</a>
+        </div>
+        <p class="landing__hint">Demo sign-ins are provided, no registration needed.</p>
+      </div>
+
+      <!-- Mock chat preview -->
+      <div class="landing__hero-card" aria-hidden="true">
+        <div class="landing__chat">
+          <div class="landing__chat-head">
+            <span class="landing__chat-dot"></span> FedE Assistant
+          </div>
+          <div class="landing__bubble landing__bubble--user">
+            Reschedule FX100001 to next Friday
+          </div>
+          <div class="landing__bubble landing__bubble--tool">
+            <span class="landing__tool-chip">tool: reschedule_delivery</span>
+            <span class="landing__tool-ok">&#10003; authorized &middot; executed</span>
+          </div>
+          <div class="landing__bubble landing__bubble--bot">
+            Done! FX100001 is now scheduled for Friday. Your new ETA is confirmed.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats strip -->
+  <section class="landing__stats">
+    <div class="landing__stats-inner">
+      <div class="landing__stat"><b>6</b><span>real tools the agent can call</span></div>
+      <div class="landing__stat"><b>2</b><span>input modes: text and voice</span></div>
+      <div class="landing__stat"><b>3</b><span>roles with enforced permissions</span></div>
+      <div class="landing__stat"><b>26+</b><span>automated tests, SAST clean</span></div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="landing__section" id="features">
+    <h2>What makes FedE different</h2>
+    <p class="landing__section-sub">Not a chatbot that hands you links. An agent that plans, acts and confirms.</p>
+    <div class="landing__grid">
+      <div class="landing__card">
+        <div class="landing__card-icon">&#129302;</div>
+        <h3>Agentic planner</h3>
+        <p>Claude decides which tools to call and in what order: track, list, reschedule,
+        redirect, cancel, notifications. Multi-step plans, real database mutations.</p>
+      </div>
+      <div class="landing__card">
+        <div class="landing__card-icon">&#127908;</div>
+        <h3>Voice assistant</h3>
+        <p>Hands-free support with speech in and speech out. It waits for you to finish
+        speaking before responding, with explicit microphone consent.</p>
+      </div>
+      <div class="landing__card">
+        <div class="landing__card-icon">&#128274;</div>
+        <h3>Secure by design</h3>
+        <p>OAuth2 + JWT sign-in, role-based authorization inside every tool, CORS
+        allow-list, rate limiting, security headers and fail-closed secrets.</p>
+      </div>
+      <div class="landing__card">
+        <div class="landing__card-icon">&#9889;</div>
+        <h3>Proactive, not reactive</h3>
+        <p>Delay or exception on your package? FedE surfaces it and offers the fix,
+        reschedule or redirect, in the same reply.</p>
+      </div>
+      <div class="landing__card">
+        <div class="landing__card-icon">&#129517;</div>
+        <h3>One rules engine</h3>
+        <p>The agent's tools and the REST API share the same operations layer, so
+        business rules and permissions can never drift apart.</p>
+      </div>
+      <div class="landing__card">
+        <div class="landing__card-icon">&#128737;&#65039;</div>
+        <h3>Graceful degradation</h3>
+        <p>No AI key? The platform falls back to a deterministic tracker so core
+        support never goes down with the model.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="landing__section landing__section--alt" id="how">
+    <h2>How it works</h2>
+    <p class="landing__section-sub">From a sentence to a completed action in four steps.</p>
+    <div class="landing__steps">
+      <div class="landing__step">
+        <span class="landing__step-num">1</span>
+        <h3>Sign in</h3>
+        <p>OAuth2 password flow issues a short-lived JWT. Your role (customer or agent)
+        travels with every request.</p>
+      </div>
+      <div class="landing__step">
+        <span class="landing__step-num">2</span>
+        <h3>Ask naturally</h3>
+        <p>Type or speak: "where are my packages?", "move FX100001 to Friday",
+        "send it to my office instead".</p>
+      </div>
+      <div class="landing__step">
+        <span class="landing__step-num">3</span>
+        <h3>The agent plans</h3>
+        <p>Claude reads the conversation, picks the right tools with the right arguments,
+        and loops until the job is done.</p>
+      </div>
+      <div class="landing__step">
+        <span class="landing__step-num">4</span>
+        <h3>Verified action</h3>
+        <p>Every tool call passes authorization and business rules before touching the
+        database. You get a plain-language confirmation.</p>
+      </div>
+    </div>
+    <div class="landing__cta-center">
+      <button class="landing__btn landing__btn--primary landing__btn--lg" (click)="start()">
+        {{ api.isSignedIn() ? 'Open the dashboard' : 'Sign in and try it' }}
+      </button>
+    </div>
+  </section>
+
+  <footer class="landing__footer">
+    <span><b>FedE</b> &middot; FedEx Digithon Phase 2 &middot; Team Purple Route 31</span>
+    <span>FastAPI &middot; Angular 20 &middot; Claude (Anthropic) &middot; SQLite</span>
+  </footer>
+</div>

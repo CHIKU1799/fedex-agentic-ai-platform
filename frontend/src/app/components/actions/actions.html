@@ -1,0 +1,60 @@
+<div class="actions-container">
+  <h2>Self-Service Actions</h2>
+
+  <div class="action-tabs">
+    <button [class.active]="activeAction() === 'reschedule'" (click)="setAction('reschedule')">Reschedule</button>
+    <button [class.active]="activeAction() === 'redirect'" (click)="setAction('redirect')">Redirect</button>
+    <button [class.active]="activeAction() === 'cancel'" (click)="setAction('cancel')">Cancel</button>
+  </div>
+
+  <div class="form-card">
+    <div class="form-group">
+      <label>Tracking ID</label>
+      <input type="text" [ngModel]="trackingId()" (ngModelChange)="trackingId.set($event)" placeholder="e.g., FX100001" />
+    </div>
+
+    @if (activeAction() === 'reschedule') {
+      <div class="form-group">
+        <label>New Delivery Date</label>
+        <input type="date" [ngModel]="newDate()" (ngModelChange)="newDate.set($event)" />
+      </div>
+    }
+
+    @if (activeAction() === 'redirect') {
+      <div class="form-group">
+        <label>New Delivery Address</label>
+        <input type="text" [ngModel]="newAddress()" (ngModelChange)="newAddress.set($event)" placeholder="123 Main St, City, State" />
+      </div>
+    }
+
+    @if (activeAction() === 'cancel') {
+      <div class="form-group">
+        <label>Reason (optional)</label>
+        <input type="text" [ngModel]="reason()" (ngModelChange)="reason.set($event)" placeholder="Reason for cancellation" />
+      </div>
+    }
+
+    <button class="submit-btn" (click)="submit()" [disabled]="loading()">
+      {{ loading() ? 'Processing...' : (activeAction() | uppercase) }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="error-msg">{{ error() }}</div>
+  }
+
+  @if (result()) {
+    <div class="success-msg">
+      <strong>{{ result().message }}</strong>
+      @if (result().new_eta) {
+        <p>New ETA: {{ result().new_eta }}</p>
+      }
+      @if (result().new_destination) {
+        <p>New Destination: {{ result().new_destination }}</p>
+      }
+      @if (result().status) {
+        <p>Status: {{ result().status }}</p>
+      }
+    </div>
+  }
+</div>

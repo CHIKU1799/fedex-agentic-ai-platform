@@ -1,0 +1,57 @@
+name: CI (test + SAST)
+
+# Secure-by-Design pipeline: runs the test suite and static application
+# security testing (SAST) on every push / PR. CodeQL lives in codeql.yml.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  backend:
+    name: Backend tests + Bandit SAST
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Core runtime + test deps. OCR/barcode native libs are optional
+          # and import-guarded, so we skip them in CI.
+          pip install fastapi "uvicorn[standard]" python-multipart pydantic \
+                      sqlalchemy openai python-dotenv loguru pytest httpx bandit pip-audit
+
+      - name: Run tests
+        env:
+          ENV: development
+          JWT_SECRET: ci-test-secret
+        run: pytest -q
+
+      - name: Bandit SAST (fail on medium+ severity)
+        run: bandit -r app -ll -x app/../tests
+
+      - name: Dependency vulnerability audit
+        run: pip-audit --progress-spinner off || true  # advisory; do not block build
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci || npm install
+      - run: npm run build --if-present

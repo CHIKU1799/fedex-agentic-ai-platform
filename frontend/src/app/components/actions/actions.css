@@ -1,0 +1,27 @@
+.actions-container { max-width: 600px; margin: 0 auto; }
+.action-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.action-tabs button {
+  flex: 1; padding: 10px; border: 2px solid #4d148c; background: #fff;
+  color: #4d148c; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.action-tabs button.active { background: #4d148c; color: #fff; }
+.form-card {
+  background: #fff; padding: 24px; border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.form-group input {
+  width: 100%; padding: 10px 14px; font-size: 15px;
+  border: 2px solid #ddd; border-radius: 6px; outline: none; box-sizing: border-box;
+}
+.form-group input:focus { border-color: #4d148c; }
+.submit-btn {
+  width: 100%; padding: 12px; background: #ff6200; color: #fff;
+  border: none; border-radius: 6px; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.submit-btn:hover { background: #e55a00; }
+.submit-btn:disabled { background: #ccc; cursor: not-allowed; }
+.error-msg { color: #d32f2f; background: #fce4ec; padding: 12px; border-radius: 6px; margin-top: 16px; }
+.success-msg { background: #e8f5e9; color: #2e7d32; padding: 16px; border-radius: 6px; margin-top: 16px; }
+.success-msg p { margin: 6px 0 0; }

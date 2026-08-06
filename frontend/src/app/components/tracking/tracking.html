@@ -1,0 +1,53 @@
+<div class="tracking-container">
+  <h2>Track Your Shipment</h2>
+  <div class="search-bar">
+    <input
+      type="text"
+      [ngModel]="trackingId()"
+      (ngModelChange)="trackingId.set($event)"
+      placeholder="Enter tracking ID (e.g., FX100001)"
+      (keyup.enter)="track()"
+    />
+    <button (click)="track()" [disabled]="loading()">
+      {{ loading() ? 'Tracking...' : 'Track' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="error-msg">{{ error() }}</div>
+  }
+
+  @if (result()) {
+    <div class="result-card">
+      <div class="status-badge" [class]="result().status">
+        {{ result().status | uppercase }}
+      </div>
+      <div class="detail-grid">
+        <div class="detail">
+          <span class="label">Tracking ID</span>
+          <span class="value">{{ result().tracking_id }}</span>
+        </div>
+        <div class="detail">
+          <span class="label">Current Location</span>
+          <span class="value">{{ result().location }}</span>
+        </div>
+        <div class="detail">
+          <span class="label">ETA</span>
+          <span class="value">{{ result().eta }}</span>
+        </div>
+        <div class="detail">
+          <span class="label">Origin</span>
+          <span class="value">{{ result().origin }}</span>
+        </div>
+        <div class="detail">
+          <span class="label">Destination</span>
+          <span class="value">{{ result().destination }}</span>
+        </div>
+        <div class="detail">
+          <span class="label">Customer ID</span>
+          <span class="value">{{ result().customer_id }}</span>
+        </div>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,36 @@
+.notifications-container { max-width: 700px; margin: 0 auto; }
+.search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+.search-bar input {
+  flex: 1; padding: 10px 14px; font-size: 15px;
+  border: 2px solid #ddd; border-radius: 6px; outline: none;
+}
+.search-bar input:focus { border-color: #4d148c; }
+.search-bar button {
+  padding: 10px 24px; background: #4d148c; color: #fff;
+  border: none; border-radius: 6px; font-size: 15px; cursor: pointer;
+}
+.empty { color: #999; text-align: center; padding: 40px; }
+.error-msg { color: #d32f2f; background: #fce4ec; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+.notif-list { display: flex; flex-direction: column; gap: 12px; }
+.notif-card {
+  background: #fff; padding: 16px; border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1); border-left: 4px solid #ff6200;
+}
+.notif-card.read { border-left-color: #ccc; opacity: 0.7; }
+.notif-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.type-badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  font-weight: 700; text-transform: uppercase; color: #fff;
+}
+.type-badge.delay { background: #d32f2f; }
+.type-badge.eta_update { background: #ff6f00; }
+.type-badge.delivered { background: #4caf50; }
+.type-badge.exception { background: #9c27b0; }
+.tracking { font-size: 13px; color: #4d148c; font-weight: 600; }
+.mark-read {
+  margin-left: auto; padding: 4px 12px; font-size: 12px;
+  background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9;
+  border-radius: 4px; cursor: pointer;
+}
+.read-label { margin-left: auto; font-size: 12px; color: #999; }
+.notif-msg { margin: 0; font-size: 14px; color: #333; line-height: 1.5; }

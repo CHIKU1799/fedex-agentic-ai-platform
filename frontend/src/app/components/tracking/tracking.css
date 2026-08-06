@@ -1,0 +1,34 @@
+.tracking-container { max-width: 700px; margin: 0 auto; }
+.search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+.search-bar input {
+  flex: 1; padding: 12px 16px; font-size: 16px;
+  border: 2px solid #ddd; border-radius: 6px; outline: none;
+}
+.search-bar input:focus { border-color: #4d148c; }
+.search-bar button {
+  padding: 12px 28px; background: #4d148c; color: #fff;
+  border: none; border-radius: 6px; font-size: 16px; cursor: pointer;
+}
+.search-bar button:hover { background: #3a0f6a; }
+.search-bar button:disabled { background: #999; cursor: not-allowed; }
+.error-msg { color: #d32f2f; background: #fce4ec; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+.result-card {
+  background: #fff; border-radius: 8px; padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.status-badge {
+  display: inline-block; padding: 6px 16px; border-radius: 20px;
+  font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 16px;
+}
+.status-badge.in_transit { background: #ff6f00; }
+.status-badge.out_for_delivery { background: #2196f3; }
+.status-badge.delivered { background: #4caf50; }
+.status-badge.delayed { background: #d32f2f; }
+.status-badge.created { background: #9e9e9e; }
+.status-badge.rescheduled { background: #ff9800; }
+.status-badge.redirected { background: #00bcd4; }
+.status-badge.cancelled { background: #795548; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail { display: flex; flex-direction: column; }
+.label { font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: 1px; }
+.value { font-size: 16px; font-weight: 600; color: #333; margin-top: 4px; }

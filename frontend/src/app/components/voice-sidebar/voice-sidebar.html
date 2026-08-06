@@ -1,0 +1,133 @@
+<!-- Backdrop -->
+@if (isOpen()) {
+  <div class="fede-sidebar__backdrop" (click)="close()"></div>
+}
+
+<!-- Sidebar -->
+<aside class="fede-sidebar" [class.is-open]="isOpen()"
+       [class.is-listening]="voiceState() === 'listening'"
+       [class.is-processing]="voiceState() === 'processing'"
+       [class.is-speaking]="voiceState() === 'speaking'"
+       [attr.aria-hidden]="!isOpen()">
+
+  <!-- Header -->
+  <div class="fede-sidebar__header">
+    <div class="fede-sidebar__header-info">
+      <span class="fede-sidebar__avatar">F</span>
+      <div>
+        <p class="fede-sidebar__name">FedE</p>
+        <p class="fede-sidebar__subtitle">FedEx Voice Assistant</p>
+      </div>
+    </div>
+    <button class="fede-sidebar__close-btn" (click)="close()" aria-label="Close voice assistant">
+      ✕
+    </button>
+  </div>
+
+  <!-- Messages -->
+  <div class="fede-sidebar__messages" #messagesContainer role="log" aria-live="polite">
+    @for (msg of messages(); track $index) {
+      <div class="fede-msg" [class.fede-msg--assistant]="msg.role === 'assistant'" [class.fede-msg--user]="msg.role === 'user'">
+        <div class="fede-msg__avatar">{{ msg.role === 'assistant' ? 'F' : 'U' }}</div>
+        <div>
+          <div class="fede-msg__bubble">{{ msg.text }}</div>
+          @if (msg.trackingCard) {
+            <div class="fede-tracking-card">
+              <div class="fede-tracking-card__header">Shipment Details</div>
+              <div class="fede-tracking-card__body">
+                <div class="fede-tracking-card__status-badge" [class]="getStatusBadgeClass(msg.trackingCard.status)">
+                  {{ msg.trackingCard.status }}
+                </div>
+                <div class="fede-tracking-card__row">
+                  <span class="fede-tracking-card__label">Tracking ID</span>
+                  <span class="fede-tracking-card__value">{{ msg.trackingCard.tracking_id }}</span>
+                </div>
+                <div class="fede-tracking-card__row">
+                  <span class="fede-tracking-card__label">Location</span>
+                  <span class="fede-tracking-card__value">{{ msg.trackingCard.location }}</span>
+                </div>
+                <div class="fede-tracking-card__row">
+                  <span class="fede-tracking-card__label">Est. Arrival</span>
+                  <span class="fede-tracking-card__value">{{ msg.trackingCard.eta }}</span>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Microphone consent gate (Secure by Design) -->
+  @if (showConsent()) {
+    <div class="fede-consent" role="dialog" aria-label="Microphone permission">
+      <p class="fede-consent__title">🎙️ Use your microphone?</p>
+      <p class="fede-consent__body">
+        FedE needs microphone access to hear your request. Audio is used only to
+        answer you, is not stored after transcription, and the mic turns off
+        automatically when you're done.
+      </p>
+      <div class="fede-consent__actions">
+        <button class="fede-consent__btn fede-consent__btn--primary" (click)="grantConsent()">Allow microphone</button>
+        <button class="fede-consent__btn" (click)="declineConsent()">Not now</button>
+      </div>
+    </div>
+  }
+
+  <!-- Controls -->
+  <div class="fede-sidebar__controls">
+    <!-- Mic status reassurance -->
+    @if (voiceState() !== 'listening') {
+      <p class="fede-sidebar__mic-off" aria-live="polite">● Microphone is off</p>
+    }
+
+    <!-- Recording indicator -->
+    @if (voiceState() === 'listening') {
+      <div class="fede-sidebar__recording-indicator">
+        <div class="fede-sidebar__recording-pulse"></div>
+        <span>Listening…</span>
+      </div>
+    }
+
+    <!-- Error -->
+    @if (errorMessage()) {
+      <div class="fede-sidebar__error" role="alert">
+        ⚠ {{ errorMessage() }}
+      </div>
+    }
+
+    <p class="fede-sidebar__status-text">{{ statusText }}</p>
+
+    <!-- Waveform -->
+    @if (voiceState() === 'listening') {
+      <div class="fede-sidebar__waveform">
+        <div class="fede-sidebar__wave-bar"></div>
+        <div class="fede-sidebar__wave-bar"></div>
+        <div class="fede-sidebar__wave-bar"></div>
+        <div class="fede-sidebar__wave-bar"></div>
+        <div class="fede-sidebar__wave-bar"></div>
+      </div>
+    }
+
+    <!-- Mic button -->
+    <div class="fede-sidebar__actions">
+      <button class="fede-sidebar__mic-toggle-btn"
+              (click)="toggleMic()"
+              [attr.aria-pressed]="voiceState() === 'listening'"
+              [attr.aria-label]="voiceState() === 'listening' ? 'Stop voice input' : 'Start voice input'"
+              [disabled]="voiceState() === 'processing'">
+        @if (voiceState() === 'listening') {
+          <!-- Stop icon -->
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <path d="M6 6h12v12H6z"/>
+          </svg>
+        } @else {
+          <!-- Mic icon -->
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+          </svg>
+        }
+      </button>
+    </div>
+  </div>
+</aside>

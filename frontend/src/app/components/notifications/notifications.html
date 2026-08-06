@@ -1,0 +1,38 @@
+<div class="notifications-container">
+  <h2>Notifications</h2>
+  <div class="search-bar">
+    <input
+      type="text"
+      [ngModel]="customerId()"
+      (ngModelChange)="customerId.set($event)"
+      placeholder="Customer ID (e.g., CUST001)"
+      (keyup.enter)="load()"
+    />
+    <button (click)="load()" [disabled]="loading()">Load</button>
+  </div>
+
+  @if (error()) {
+    <div class="error-msg">{{ error() }}</div>
+  }
+
+  @if (notifications().length === 0 && !loading()) {
+    <p class="empty">No notifications. Enter a customer ID and click Load.</p>
+  }
+
+  <div class="notif-list">
+    @for (n of notifications(); track n.id) {
+      <div class="notif-card" [class.read]="n.is_read === 'true'">
+        <div class="notif-header">
+          <span class="type-badge" [class]="n.notification_type">{{ n.notification_type }}</span>
+          <span class="tracking">{{ n.tracking_id }}</span>
+          @if (n.is_read !== 'true') {
+            <button class="mark-read" (click)="markRead(n.id)">Mark Read</button>
+          } @else {
+            <span class="read-label">Read</span>
+          }
+        </div>
+        <p class="notif-msg">{{ n.message }}</p>
+      </div>
+    }
+  </div>
+</div>

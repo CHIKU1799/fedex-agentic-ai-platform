@@ -1,0 +1,103 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <div>
+      <h2>Ask FedE</h2>
+      <p class="hint">Your agentic assistant — it takes real actions, not just answers.</p>
+    </div>
+    @if (sessionTokens() > 0) {
+      <span class="token-pill" title="Tokens used this session (agentic mode)">
+        ⚡ {{ sessionTokens() }} tokens
+      </span>
+    }
+  </div>
+
+  <div class="chat-messages">
+    @if (messages().length === 0) {
+      <div class="empty-state">
+        <div class="empty-avatar">F</div>
+        <p class="empty-title">Hey, I'm FedE.</p>
+        <p class="empty-sub">Ask me to track, reschedule, redirect or cancel a shipment.</p>
+        <div class="suggestions">
+          @for (s of suggestions; track s) {
+            <button class="suggestion-chip" (click)="useSuggestion(s)">{{ s }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (msg of messages(); track $index) {
+      <div class="msg" [class]="msg.role">
+        <div class="msg__avatar">{{ msg.role === 'user' ? 'You' : 'F' }}</div>
+        <div class="msg__body">
+          <div class="bubble">{{ msg.text }}</div>
+
+          <!-- Action chips: what the agent actually did -->
+          @if (msg.actions?.length) {
+            <div class="action-chips">
+              @for (a of msg.actions; track $index) {
+                <span class="action-chip" [class.action-chip--fail]="!a.ok">
+                  {{ a.ok ? '✓' : '✕' }} {{ toolLabel(a.tool) }}
+                </span>
+              }
+            </div>
+          }
+
+          <!-- Inline tracking card -->
+          @if (msg.card) {
+            <div class="track-card">
+              <div class="track-card__top">
+                <span class="track-card__id">{{ msg.card.tracking_id }}</span>
+                <span class="badge" [class]="statusClass(msg.card.status)">{{ msg.card.status }}</span>
+              </div>
+              <div class="track-card__row"><span>Location</span><b>{{ msg.card.location || '—' }}</b></div>
+              <div class="track-card__row"><span>ETA</span><b>{{ msg.card.eta || '—' }}</b></div>
+              @if (msg.card.destination) {
+                <div class="track-card__row"><span>Destination</span><b>{{ msg.card.destination }}</b></div>
+              }
+            </div>
+          }
+
+          <!-- Inline shipment list -->
+          @if (msg.shipments?.length) {
+            <div class="shipment-list">
+              @for (s of msg.shipments; track s.tracking_id) {
+                <div class="shipment-row">
+                  <span class="shipment-row__id">{{ s.tracking_id }}</span>
+                  <span class="badge" [class]="statusClass(s.status)">{{ s.status }}</span>
+                  <span class="shipment-row__eta">ETA {{ s.eta }}</span>
+                </div>
+              }
+            </div>
+          }
+
+          @if (msg.tokens) {
+            <span class="token-note">⚡ {{ msg.tokens }} tokens</span>
+          }
+        </div>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="msg ai">
+        <div class="msg__avatar">F</div>
+        <div class="msg__body">
+          <div class="bubble typing">
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+        </div>
+      </div>
+    }
+    <div #scrollAnchor></div>
+  </div>
+
+  <div class="chat-input">
+    <input
+      type="text"
+      [ngModel]="query()"
+      (ngModelChange)="query.set($event)"
+      placeholder="Ask FedE anything about your shipments…"
+      (keyup.enter)="send()"
+    />
+    <button (click)="send()" [disabled]="loading() || !query().trim()">Send</button>
+  </div>
+</div>

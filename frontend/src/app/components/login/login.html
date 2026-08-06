@@ -1,0 +1,45 @@
+<div class="auth">
+  @if (api.currentUser(); as user) {
+    <!-- Signed in -->
+    <div class="auth__signed">
+      <span class="auth__user">
+        <span class="auth__avatar">{{ user.username.charAt(0).toUpperCase() }}</span>
+        <span class="auth__meta">
+          <b>{{ user.username }}</b>
+          <em class="auth__role auth__role--{{ user.role }}">{{ user.role }}</em>
+        </span>
+      </span>
+      <button class="auth__btn auth__btn--ghost" (click)="logout()">Sign out</button>
+    </div>
+  } @else {
+    <button class="auth__btn" (click)="toggle()">Sign in</button>
+  }
+
+  @if (open() && !api.currentUser()) {
+    <div class="auth__backdrop" (click)="toggle()"></div>
+    <div class="auth__modal" role="dialog" aria-label="Sign in">
+      <p class="auth__title">Sign in to FedE</p>
+      <p class="auth__sub">Customers see only their own shipments; agents see all.</p>
+
+      <input class="auth__input" type="text" placeholder="Username"
+             [ngModel]="username()" (ngModelChange)="username.set($event)" (keyup.enter)="submit()" />
+      <input class="auth__input" type="password" placeholder="Password"
+             [ngModel]="password()" (ngModelChange)="password.set($event)" (keyup.enter)="submit()" />
+
+      @if (error()) { <p class="auth__error">{{ error() }}</p> }
+
+      <button class="auth__btn auth__btn--primary" (click)="submit()" [disabled]="loading()">
+        {{ loading() ? 'Signing in…' : 'Sign in' }}
+      </button>
+
+      <div class="auth__demo">
+        <span class="auth__demo-label">Quick demo sign-in</span>
+        <div class="auth__demo-grid">
+          @for (c of demoCreds; track c.username) {
+            <button class="auth__demo-btn" (click)="fill(c)" [disabled]="loading()">{{ c.label }}</button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

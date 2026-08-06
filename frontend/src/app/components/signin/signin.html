@@ -1,0 +1,53 @@
+<div class="signin">
+  <!-- Brand panel -->
+  <aside class="signin__brand">
+    <a class="signin__logo" routerLink="/">
+      <span class="signin__logo-fed">Fed</span><span class="signin__logo-e">E</span>
+    </a>
+    <h1>Welcome back.</h1>
+    <p>Sign in to track, reschedule, redirect and cancel shipments with your AI assistant.</p>
+    <ul class="signin__points">
+      <li>&#128274; OAuth2 + JWT, role-based access</li>
+      <li>&#129302; Agentic planner powered by Claude</li>
+      <li>&#127908; Text and voice, your choice</li>
+    </ul>
+    <a class="signin__back" routerLink="/">&#8592; Back to home</a>
+  </aside>
+
+  <!-- Form panel -->
+  <main class="signin__panel">
+    <div class="signin__card">
+      <h2>Sign in to FedE</h2>
+      <p class="signin__sub">Customers see only their own shipments; agents see all.</p>
+
+      <label class="signin__label" for="si-user">Username</label>
+      <input id="si-user" class="signin__input" type="text" placeholder="e.g. cust001"
+             [ngModel]="username()" (ngModelChange)="username.set($event)" (keyup.enter)="submit()" />
+
+      <label class="signin__label" for="si-pass">Password</label>
+      <input id="si-pass" class="signin__input" type="password" placeholder="Password"
+             [ngModel]="password()" (ngModelChange)="password.set($event)" (keyup.enter)="submit()" />
+
+      @if (error()) { <p class="signin__error">{{ error() }}</p> }
+
+      <button class="signin__submit" (click)="submit()" [disabled]="loading()">
+        {{ loading() ? 'Signing in…' : 'Sign in' }}
+      </button>
+
+      <div class="signin__divider"><span>or use a demo account</span></div>
+
+      <div class="signin__demo-list">
+        @for (c of demoCreds; track c.username) {
+          <button class="signin__demo" (click)="fill(c)" [disabled]="loading()">
+            <span class="signin__demo-role signin__demo-role--{{ c.role }}">{{ c.role }}</span>
+            <span class="signin__demo-meta">
+              <b>{{ c.label }}</b>
+              <em>{{ c.hint }}</em>
+            </span>
+            <span class="signin__demo-go">&#8594;</span>
+          </button>
+        }
+      </div>
+    </div>
+  </main>
+</div>

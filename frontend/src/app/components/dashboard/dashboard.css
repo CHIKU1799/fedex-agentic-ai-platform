@@ -1,0 +1,83 @@
+.header {
+  background: #4d148c;
+  color: #fff;
+  padding: 16px 24px;
+}
+.header-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.voice-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ff6200;
+  color: #fff;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.voice-btn:hover {
+  background: #e55800;
+}
+.voice-btn:active {
+  transform: scale(0.96);
+}
+.logo-fed {
+  font-size: 28px;
+  font-weight: 700;
+}
+.logo-e {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ff6200;
+}
+.logo-subtitle {
+  font-size: 13px;
+  margin-left: 12px;
+  opacity: 0.8;
+  font-weight: 400;
+}
+.nav-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  background: #fff;
+  border-bottom: 2px solid #e0e0e0;
+  padding: 0 24px;
+}
+.nav-tabs button {
+  padding: 14px 28px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+.nav-tabs button:hover {
+  color: #4d148c;
+}
+.nav-tabs button.active {
+  color: #4d148c;
+  border-bottom-color: #ff6200;
+}
+.main-content {
+  padding: 32px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
