@@ -57,6 +57,57 @@
             </div>
           }
 
+          <!-- Weather risk card -->
+          @if (msg.weather) {
+            <div class="weather-card" [class]="riskClass(msg.weather.risk)">
+              @if (msg.weather.available) {
+                <div class="weather-card__top">
+                  <span class="weather-card__icon">{{ riskIcon(msg.weather.risk) }}</span>
+                  <div>
+                    <div class="weather-card__place">{{ msg.weather.location }} · {{ msg.weather.forecast_date }}</div>
+                    <div class="weather-card__cond">{{ msg.weather.conditions }}</div>
+                  </div>
+                  <span class="risk-badge" [class]="riskClass(msg.weather.risk)">{{ msg.weather.risk }} risk</span>
+                </div>
+                @if (msg.weather.temperature_max_c !== null && msg.weather.temperature_max_c !== undefined) {
+                  <div class="weather-card__temps">
+                    {{ msg.weather.temperature_min_c }}°C to {{ msg.weather.temperature_max_c }}°C
+                  </div>
+                }
+                @if (msg.notificationCreated) {
+                  <div class="weather-card__note">🔔 Proactive weather alert sent to the customer</div>
+                }
+              } @else {
+                <div class="weather-card__cond">{{ msg.weather.reason || 'Weather data unavailable.' }}</div>
+              }
+            </div>
+          }
+
+          <!-- Delivery-date outlook strip -->
+          @if (msg.outlook) {
+            <div class="outlook">
+              <div class="outlook__title">Next days at the destination (tap a clear day to reschedule)</div>
+              <div class="outlook__strip">
+                @for (d of msg.outlook.days; track d.date) {
+                  <button
+                    class="outlook__day"
+                    [class]="riskClass(d.risk)"
+                    [class.outlook__day--pick]="d.date === msg.outlook.recommended_date"
+                    [disabled]="d.risk === 'high' || loading()"
+                    (click)="rescheduleTo(msg.outlook.tracking_id, d.date)"
+                    title="{{ d.conditions }}"
+                  >
+                    <span class="outlook__icon">{{ riskIcon(d.risk) }}</span>
+                    <span class="outlook__date">{{ d.date.slice(5) }}</span>
+                    @if (d.date === msg.outlook.recommended_date) {
+                      <span class="outlook__star">best</span>
+                    }
+                  </button>
+                }
+              </div>
+            </div>
+          }
+
           <!-- Inline shipment list -->
           @if (msg.shipments?.length) {
             <div class="shipment-list">

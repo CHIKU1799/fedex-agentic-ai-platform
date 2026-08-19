@@ -35,7 +35,12 @@ _SYSTEM_PROMPT = (
     "packages, and review notifications. Use the provided tools to take real "
     "actions rather than describing how the user could do it themselves. "
     "Be PROACTIVE: when a shipment is delayed or has an exception, offer the "
-    "relevant next step (e.g. reschedule or redirect) in the same reply. When "
+    "relevant next step (e.g. reschedule or redirect) in the same reply. Use "
+    "check_weather_impact when the user asks about weather, and proactively "
+    "when a shipment is delayed or in transit, so you can warn about high "
+    "weather risk at the destination and offer to reschedule. When weather "
+    "risk is high, chain suggest_delivery_dates to propose the earliest "
+    "low-risk date, or offer hold_at_location for pickup instead. When "
     "the user refers to their packages without a tracking ID, use "
     "list_customer_shipments to find them. Always confirm a destructive action "
     "(cancellation) before performing it. If a tool returns an error (e.g. not "
@@ -150,7 +155,9 @@ def _detect_intent(query: str) -> str:
         "reschedule": ["reschedule", "change date", "change delivery", "postpone"],
         "redirect": ["redirect", "change address", "different address", "send to"],
         "cancel": ["cancel", "stop shipment", "stop delivery"],
+        "hold": ["hold", "pickup point", "pick it up", "not home", "collect it"],
         "notification": ["notify", "notification", "alert", "update me", "status update"],
+        "weather": ["weather", "rain", "snow", "storm", "forecast", "wind"],
         "track": ["track", "where is", "shipment", "package", "delivery status", "locate", "find my"],
     }
     for intent, kws in buckets.items():
@@ -181,10 +188,27 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
                 continue
         return {"intent": "track", "data": {"message": f"No shipment found for {tracking_id}"}}
 
+    if intent == "weather":
+        tracking_id = _extract_tracking_id(query)
+        if not tracking_id:
+            return {"intent": "weather",
+                    "data": {"message": "Give me a tracking ID (e.g. FX100001) and I'll check the forecast at its destination."}}
+        candidates = [tracking_id]
+        if not tracking_id.upper().startswith("FX"):
+            candidates.append(f"FX{tracking_id}")
+        for candidate in candidates:
+            try:
+                result = shipment_ops.weather_impact(db, user, candidate)
+                return {"intent": "weather", "data": result}
+            except Exception:
+                continue
+        return {"intent": "weather", "data": {"message": f"No shipment found for {tracking_id}"}}
+
     guidance = {
         "reschedule": "To reschedule, use POST /reschedule with your tracking_id and new_date.",
         "redirect": "To redirect, use POST /redirect with your tracking_id and new_address.",
         "cancel": "To cancel, use POST /cancel with your tracking_id.",
+        "hold": "To hold your package for pickup, use POST /hold with your tracking_id (and an optional location).",
         "notification": "To view notifications, use GET /notifications/{customer_id}.",
     }
     if intent in guidance:

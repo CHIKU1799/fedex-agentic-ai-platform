@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.request_schema import (
     QueryRequest, ShipmentCreate, ShipmentResponse,
-    RescheduleRequest, RedirectRequest, CancelRequest, TokenResponse,
+    RescheduleRequest, RedirectRequest, CancelRequest, HoldRequest, TokenResponse,
 )
 from app.agents.planner_agent import handle_user_query
 from app.services.barcode_service import decode_barcode
@@ -52,6 +52,38 @@ def track(tracking_id: str, db: Session = Depends(get_db)):
     if not shipment:
         raise HTTPException(status_code=404, detail=f"Shipment {tracking_id} not found")
     return ShipmentResponse.model_validate(shipment)
+
+
+# ── Weather Impact (public, same access model as /track) ──
+
+@router.get("/weather/{tracking_id}")
+def weather_impact(
+    tracking_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_effective_user),
+):
+    """Forecast-based delivery-delay risk at the shipment's destination."""
+    return shipment_ops.weather_impact(db, user, tracking_id)
+
+
+@router.get("/delivery-options/{tracking_id}")
+def delivery_options(
+    tracking_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_effective_user),
+):
+    """Weather-aware delivery-date suggestions for the next week."""
+    return shipment_ops.suggest_delivery_dates(db, user, tracking_id)
+
+
+@router.post("/hold")
+def hold_at_location(
+    payload: HoldRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    result = shipment_ops.hold_at_location(db, user, payload.tracking_id, payload.location or "")
+    return {"message": "Hold requested", **result}
 
 
 # ── Create Shipment (agent only) ──

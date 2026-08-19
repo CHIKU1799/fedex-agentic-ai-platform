@@ -16,20 +16,49 @@ interface ActionChip {
   ok: boolean;
 }
 
+interface WeatherReport {
+  available: boolean;
+  reason?: string;
+  location?: string;
+  forecast_date?: string;
+  risk?: string;
+  conditions?: string;
+  temperature_max_c?: number;
+  temperature_min_c?: number;
+}
+
+interface OutlookDay {
+  date: string;
+  risk: string;
+  conditions: string;
+}
+
+interface DeliveryOutlook {
+  tracking_id: string;
+  recommended_date?: string | null;
+  days: OutlookDay[];
+}
+
 interface ChatMessage {
   role: 'user' | 'ai';
   text: string;
   actions?: ActionChip[];
   card?: TrackingCard;
   shipments?: TrackingCard[];
+  weather?: WeatherReport;
+  weatherTrackingId?: string;
+  notificationCreated?: boolean;
+  outlook?: DeliveryOutlook;
   tokens?: number;
 }
 
 const SUGGESTIONS = [
   'Where is my package FX100001?',
-  'Reschedule FX100005 to 2026-12-20',
+  'Will weather delay FX100001?',
+  'Suggest better delivery dates for FX100004',
+  'Hold FX100002 for pickup',
   'What are all my packages? (CUST001)',
-  'Redirect FX100002 to 500 Oak Ave, Austin, TX',
+  'Reschedule FX100005 to 2026-12-20',
 ];
 
 // Friendly labels for the tools the agent can invoke.
@@ -40,6 +69,9 @@ const TOOL_LABELS: Record<string, string> = {
   cancel_shipment: 'Cancelled shipment',
   list_customer_shipments: 'Listed packages',
   get_customer_notifications: 'Fetched notifications',
+  check_weather_impact: 'Checked weather risk',
+  suggest_delivery_dates: 'Suggested delivery dates',
+  hold_at_location: 'Requested hold for pickup',
 };
 
 @Component({
@@ -108,6 +140,15 @@ export class ChatComponent {
     // Natural-language reply (agentic) or derived text (fallback).
     if (resp.response) {
       msg.text = resp.response;
+    } else if (data.weather) {
+      const w = data.weather as WeatherReport;
+      msg.text = w.available
+        ? `Forecast near ${w.location} around ${w.forecast_date}: ${w.conditions}. Delivery risk: ${w.risk}.`
+        : (w.reason || 'Weather data is unavailable right now.');
+    } else if (data.outlook) {
+      msg.text = data.recommended_date
+        ? `The earliest low-risk delivery date for ${data.tracking_id} is ${data.recommended_date}.`
+        : `I could not find a low-risk date in the next week for ${data.tracking_id}.`;
     } else if (data.tracking_id) {
       msg.text = `Shipment ${data.tracking_id} is "${data.status}" at ${data.location}. ETA ${data.eta}.`;
     } else if (data.response) {
@@ -125,8 +166,25 @@ export class ChatComponent {
       msg.actions = resp.actions_taken.map((a: any) => ({ tool: a.tool, ok: !!a.ok }));
     }
 
-    // Inline tracking card / shipment list.
-    if (data.tracking_id) {
+    // Weather risk card.
+    if (data.weather) {
+      msg.weather = data.weather as WeatherReport;
+      msg.weatherTrackingId = data.tracking_id;
+      msg.notificationCreated = !!data.notification_created;
+    }
+
+    // Delivery-date outlook strip.
+    if (data.outlook?.days?.length) {
+      msg.outlook = {
+        tracking_id: data.tracking_id,
+        recommended_date: data.recommended_date,
+        days: data.outlook.days as OutlookDay[],
+      };
+    }
+
+    // Inline tracking card / shipment list. Weather and outlook replies
+    // carry a tracking_id too, but render their own richer cards instead.
+    if (data.tracking_id && !msg.weather && !msg.outlook) {
       msg.card = data as TrackingCard;
     }
     if (Array.isArray(data.shipments)) {
@@ -145,6 +203,23 @@ export class ChatComponent {
 
   statusClass(status: string): string {
     return 'badge--' + (status || 'unknown').toLowerCase().replace(/\s+/g, '-');
+  }
+
+  riskClass(risk?: string): string {
+    return 'risk--' + (risk || 'unknown');
+  }
+
+  riskIcon(risk?: string): string {
+    if (risk === 'high') return '⛈';
+    if (risk === 'moderate') return '🌧';
+    return '☀️';
+  }
+
+  /** One-click reschedule from the outlook strip. */
+  rescheduleTo(trackingId: string, date: string): void {
+    if (!trackingId || this.loading()) return;
+    this.query.set(`Reschedule ${trackingId} to ${date}`);
+    this.send();
   }
 
   private scrollSoon(): void {

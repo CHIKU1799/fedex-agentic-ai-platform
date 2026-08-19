@@ -2,7 +2,11 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-const API = 'http://127.0.0.1:8000';
+// Local dev talks to uvicorn directly; deployed builds use the same-origin
+// /api prefix, which Vercel rewrites to the serverless FastAPI function.
+const API = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  ? 'http://127.0.0.1:8000'
+  : '/api';
 
 export interface CurrentUser {
   username: string;

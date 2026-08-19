@@ -26,6 +26,7 @@
 .type-badge.eta_update { background: #ff6f00; }
 .type-badge.delivered { background: #4caf50; }
 .type-badge.exception { background: #9c27b0; }
+.type-badge.weather_alert { background: #1565c0; }
 .tracking { font-size: 13px; color: #4d148c; font-weight: 600; }
 .mark-read {
   margin-left: auto; padding: 4px 12px; font-size: 12px;

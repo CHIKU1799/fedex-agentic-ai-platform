@@ -88,6 +88,16 @@ class CancelRequest(BaseModel):
         return _validate_tracking(v)
 
 
+class HoldRequest(BaseModel):
+    tracking_id: str
+    location: Optional[constr(max_length=300)] = None
+
+    @field_validator("tracking_id")
+    @classmethod
+    def _tracking(cls, v):
+        return _validate_tracking(v)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

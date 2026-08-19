@@ -1,0 +1,13 @@
+# Serverless (Vercel) dependency set for api/index.py.
+# Native-lib extras (opencv, pyzbar, pytesseract) are intentionally
+# excluded: their imports are guarded and /scan degrades gracefully.
+# The full local/dev set lives in backend/requirements.txt.
+fastapi>=0.110,<1.0
+pydantic>=2.6,<3.0
+sqlalchemy>=2.0,<3.0
+anthropic>=0.40
+openai>=1.30
+python-dotenv>=1.0
+loguru>=0.7
+httpx>=0.27
+python-multipart>=0.0.9

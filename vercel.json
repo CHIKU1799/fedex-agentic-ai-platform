@@ -1,0 +1,10 @@
+{
+  "installCommand": "cd frontend && npm ci",
+  "buildCommand": "cd frontend && npx ng build",
+  "outputDirectory": "frontend/dist/fedex-ui/browser",
+  "framework": null,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
+}

@@ -109,6 +109,57 @@ TOOL_SCHEMAS = [
         }
     },
     {
+        "name": "check_weather_impact",
+        "description": "Check the weather forecast at a shipment's destination and assess delivery-delay risk (low/moderate/high) around its ETA. Use when the user asks about weather, or proactively when a shipment is delayed or in transit and weather could explain or threaten the ETA. High risk automatically notifies the customer.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tracking_id": {
+                    "type": "string",
+                    "description": "Tracking ID such as FX100001."
+                }
+            },
+            "required": [
+                "tracking_id"
+            ]
+        }
+    },
+    {
+        "name": "suggest_delivery_dates",
+        "description": "Get weather-aware delivery-date suggestions for a shipment: a 7-day risk outlook at the destination plus the earliest low-risk date. Use before rescheduling around bad weather, or when the user asks 'when should I get it delivered instead?'.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tracking_id": {
+                    "type": "string",
+                    "description": "Tracking ID such as FX100001."
+                }
+            },
+            "required": [
+                "tracking_id"
+            ]
+        }
+    },
+    {
+        "name": "hold_at_location",
+        "description": "Hold the package for pickup at a FedEx facility instead of delivering it. Use when the customer will not be home, or as a safe option when weather risk at the destination is high. Confirm intent before calling.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tracking_id": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Optional preferred pickup location; defaults to the facility nearest the destination."
+                }
+            },
+            "required": [
+                "tracking_id"
+            ]
+        }
+    },
+    {
         "name": "get_customer_notifications",
         "description": "List proactive notifications (delays, ETA updates, exceptions) for a customer ID.",
         "input_schema": {
@@ -144,6 +195,12 @@ def execute_tool(name: str, arguments: dict, db: Session, user: User) -> dict:
             return {"ok": True, "result": shipment_ops.cancel(db, user, arguments["tracking_id"], arguments.get("reason", ""))}
         if name == "list_customer_shipments":
             return {"ok": True, "result": shipment_ops.list_for_customer(db, user, arguments["customer_id"])}
+        if name == "check_weather_impact":
+            return {"ok": True, "result": shipment_ops.weather_impact(db, user, arguments["tracking_id"])}
+        if name == "suggest_delivery_dates":
+            return {"ok": True, "result": shipment_ops.suggest_delivery_dates(db, user, arguments["tracking_id"])}
+        if name == "hold_at_location":
+            return {"ok": True, "result": shipment_ops.hold_at_location(db, user, arguments["tracking_id"], arguments.get("location", ""))}
         if name == "get_customer_notifications":
             return {"ok": True, "result": shipment_ops.notifications_for(db, user, arguments["customer_id"])}
         return {"ok": False, "error": f"Unknown tool: {name}"}

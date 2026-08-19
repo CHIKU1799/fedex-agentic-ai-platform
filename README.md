@@ -4,6 +4,8 @@
 
 An AI-powered customer support assistant for FedEx that replaces traditional IVR with natural language conversations via text, voice, and barcode scanning.
 
+**Live demo:** https://fedex-agentic-ai-platform.vercel.app (Angular frontend served statically; the FastAPI backend runs as a Vercel serverless function under `/api`, with a per-instance demo SQLite database re-seeded on cold start).
+
 > **Agentic core:** when an OpenAI key is configured, `/ask` and `/voice` run a
 > real **tool-calling agent** (`backend/app/agents/planner_agent.py`) that plans
 > and *executes* actions — "reschedule FX100001 to Dec 1" actually reschedules
@@ -138,7 +140,28 @@ Content-Type: application/json
 
 {"query": "Where is my package FX100002?"}
 ```
-Detects intent (track, reschedule, redirect, cancel, notification, general) and routes accordingly.
+Detects intent (track, weather, reschedule, redirect, cancel, hold, notification, general) and routes accordingly. In agentic mode the planner can chain nine tools: track_shipment, reschedule_delivery, redirect_package, cancel_shipment, list_customer_shipments, get_customer_notifications, check_weather_impact, suggest_delivery_dates, and hold_at_location.
+
+### Weather Impact (public, powered by Open-Meteo, no API key needed)
+```
+GET /weather/{tracking_id}
+```
+Geocodes the shipment destination, fetches the forecast around the ETA, and classifies delivery risk (low, moderate, high). High risk on an active shipment proactively creates a deduplicated `weather_alert` notification for the customer.
+
+### Delivery Options (public)
+```
+GET /delivery-options/{tracking_id}
+```
+A 7-day risk outlook at the destination plus the earliest low-risk date, so the agent (or the UI's one-tap outlook strip) can reschedule around bad weather.
+
+### Hold at Location (authenticated + authorized)
+```
+POST /hold
+Content-Type: application/json
+
+{"tracking_id": "FX100002", "location": "optional pickup point"}
+```
+Holds the package for pickup at a FedEx facility instead of delivering it.
 
 ### Create Shipment
 ```
