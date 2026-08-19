@@ -231,6 +231,13 @@ def test_fallback_weather_intent(client, stub_weather, cust001_auth):
     assert body["data"]["weather"]["risk"] == "low"
 
 
+def test_fallback_delivery_options_intent(client, stub_outlook):
+    resp = client.post("/ask", json={"query": "suggest better delivery dates for FX100001"})
+    body = resp.json()["response"]
+    assert body["intent"] == "delivery_options"
+    assert body["data"]["recommended_date"] == "2026-06-04"
+
+
 def test_fallback_weather_intent_needs_tracking_id(client, stub_weather):
     resp = client.post("/ask", json={"query": "what's the weather like?"})
     body = resp.json()["response"]

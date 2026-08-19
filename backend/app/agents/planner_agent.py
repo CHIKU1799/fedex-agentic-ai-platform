@@ -152,6 +152,7 @@ def _extract_tracking_id(query: str) -> str:
 def _detect_intent(query: str) -> str:
     q = query.lower()
     buckets = {
+        "delivery_options": ["suggest", "delivery dates", "delivery options", "best date", "which day", "better date"],
         "reschedule": ["reschedule", "change date", "change delivery", "postpone"],
         "redirect": ["redirect", "change address", "different address", "send to"],
         "cancel": ["cancel", "stop shipment", "stop delivery"],
@@ -187,6 +188,22 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
             except Exception:
                 continue
         return {"intent": "track", "data": {"message": f"No shipment found for {tracking_id}"}}
+
+    if intent == "delivery_options":
+        tracking_id = _extract_tracking_id(query)
+        if not tracking_id:
+            return {"intent": "delivery_options",
+                    "data": {"message": "Give me a tracking ID (e.g. FX100001) and I'll suggest weather-safe delivery dates."}}
+        candidates = [tracking_id]
+        if not tracking_id.upper().startswith("FX"):
+            candidates.append(f"FX{tracking_id}")
+        for candidate in candidates:
+            try:
+                result = shipment_ops.suggest_delivery_dates(db, user, candidate)
+                return {"intent": "delivery_options", "data": result}
+            except Exception:
+                continue
+        return {"intent": "delivery_options", "data": {"message": f"Could not suggest dates for {tracking_id}"}}
 
     if intent == "weather":
         tracking_id = _extract_tracking_id(query)
