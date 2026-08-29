@@ -198,3 +198,28 @@ cd frontend && npx ng serve
 - Proactive milestone notifications (picked up / at hub / out for delivery
   push timeline) is roadmap; today's proactive alerts cover delay, failed
   attempt, and weather.
+
+---
+
+## Goal-driven agent beats (second drop on the branch)
+
+11. **Commitments**: as cust001, type "I need FX100001 delivered before friday".
+    FedE takes ownership (C-XXXX), then the fleet-watch loop re-checks it every
+    sweep: AT_RISK notifications with a customer-first recommendation, a
+    "back on track" update when the risk clears, MET on delivery.
+12. **Map tracing**: track any package; the map now draws the traveled path in
+    orange with checkmarked hubs, and a checkpoint timeline with times sits
+    under the map (est. times for upcoming hubs).
+13. **Activity tab** (customers): every agent action, verified, with estimated
+    cost avoided. **Analytics tab** (agent login): stat tiles, tool usage,
+    audit log, autonomy policy, and a "Run fleet watch now" button.
+14. **Governance to narrate**: redirect/cancel are tier 3; the TOOL refuses
+    without explicit confirmation (try "cancel FX100001": the agent must ask
+    first). Every mutation is read back and verified before success is
+    claimed. Cost reasoning uses only the sourced $17.78 failed-attempt
+    benchmark, and customer satisfaction outranks cost by policy.
+
+Interview line: "We started with a tool-calling support agent and evolved it
+into a goal-driven agent that monitors commitments autonomously, balances
+customer outcomes above cost-to-serve, operates inside explicit authority
+tiers, verifies its actions, and keeps an auditable record of its decisions."
