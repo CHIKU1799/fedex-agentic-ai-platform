@@ -49,5 +49,9 @@
         </div>
       </div>
     </div>
+
+    @if (journey()) {
+      <app-journey-map [journey]="journey()!" />
+    }
   }
 </div>
