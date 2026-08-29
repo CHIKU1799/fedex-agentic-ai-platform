@@ -308,22 +308,20 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
         if not user.customer_id:
             return {"intent": "commitment",
                     "data": {"message": "Please log in so I can take on that delivery commitment for you."}}
-        try:
-            result = shipment_ops.set_delivery_commitment(
-                db, user, user.customer_id, tracking_id, deadline)
+        outcome = execute_tool(
+            "set_delivery_commitment",
+            {"customer_id": user.customer_id, "tracking_id": tracking_id, "target_date": deadline},
+            db, user, provider="offline")
+        if outcome.get("ok"):
+            result = outcome["result"]
             result["message"] = (
                 f"Commitment {result['commitment_id']} created: I'm now watching {tracking_id} "
                 f"to arrive by {deadline}. {result['note']}"
             )
-            from app.db.crud import record_agent_event
-            record_agent_event(db, user.username, user.role, "set_delivery_commitment", True,
-                               "offline", tracking_id, user.customer_id,
-                               f"Took on a delivery commitment ({tracking_id} by {deadline})")
             return {"intent": "commitment", "data": result}
-        except Exception:
-            return {"intent": "commitment",
-                    "data": {"message": f"Could not create a commitment for {tracking_id}. "
-                                        "Check the tracking ID, or that the shipment is still active."}}
+        return {"intent": "commitment",
+                "data": {"message": f"Could not create a commitment for {tracking_id}: "
+                                    f"{outcome.get('error', 'unknown error')}"}}
 
     if intent == "hold":
         # Hold needs no structured arguments beyond the tracking ID, so the
