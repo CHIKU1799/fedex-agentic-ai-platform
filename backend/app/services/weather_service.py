@@ -201,6 +201,11 @@ def destination_weather(destination: str, eta: str) -> dict:
             "forecast_date": dates[index],
             "eta": eta,
             "eta_within_forecast": dates[index] == (eta or "")[:10],
+            "note": (
+                None if dates[index] == (eta or "")[:10]
+                else f"The ETA ({eta}) is outside the {_FORECAST_DAYS}-day forecast window; "
+                     f"this forecast is for {dates[index]}, the closest available day."
+            ),
             "risk": assessment["risk"],
             "conditions": assessment["conditions"],
             "temperature_max_c": t_max[index] if index < len(t_max) else None,

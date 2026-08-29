@@ -142,3 +142,59 @@ cd backend  && .venv/bin/python -m uvicorn app.main:app --port 8000
 cd frontend && npx ng serve
 # open http://localhost:4200
 ```
+
+---
+
+## New beats (feature/business-agentic branch)
+
+6. **Animated journey map**
+   - Type: `Show me the route for FX100001`
+   - A cartoon map appears: the Dijkstra shortest path across the FedEx hub
+     network, per-hub live weather risk dots, a truck driving to its live
+     position, and an ETA countdown bubble ("~3d 1h to go").
+   - Say: "route is computed with Dijkstra over our hub graph; when a hub
+     goes weather-red the algorithm reroutes around it and the agent explains
+     why. Slightly longer path, reliable ETA: that is service quality."
+   - Tracking any package (`where is FX100001?`) also attaches the map.
+
+7. **Autonomy: the fleet-watch agent**
+   - (Agent login) `POST /agent/fleet-watch` or wait for the daily cron.
+   - It sweeps every active shipment on its own: delays, failed delivery
+     attempts, weather threats. Customers get proactive, deduplicated
+     notifications with a recommended fix before they ever ask "where is my
+     package?".
+
+8. **Memory**
+   - Type: `always deliver my packages after 6pm`
+   - The agent stores it (save_customer_preference); every later
+     conversation is personalized without repeating it.
+
+9. **Human handoff**
+   - Type: `my package arrived damaged, I want a refund`
+   - The agent writes the case summary itself, opens CASE-XXXX, notifies the
+     customer. Works even in offline fallback mode.
+
+10. **Resilient brain**
+    - LLM layer is multi-provider: Anthropic first, Groq (free tier) on
+      billing failure, keyword router last. The demo cannot be killed by an
+      expired API key.
+
+## Pre-demo checklist
+
+- Hit the live URL once ~2 minutes before presenting: Vercel serverless +
+  SQLite in /tmp means a cold start re-seeds demo data (state resets if the
+  function sleeps; warm it and it stays for the session).
+- ETAs are seeded relative to today, so weather forecasts are always real.
+- Demo /scan (barcode) locally only: the barcode/OCR native libraries are
+  not installed on Vercel.
+- Set a working GROQ_API_KEY (or ANTHROPIC_API_KEY with credits) in the
+  environment, otherwise chat runs in keyword-fallback mode (tracking,
+  weather, hold, escalation still work; free-form planning does not).
+
+## Roadmap (say "roadmap", do not claim as shipped)
+
+- Sentiment analytics: the prompt already nudges escalation when a customer
+  sounds upset, but scored sentiment-based routing/priority is roadmap.
+- Proactive milestone notifications (picked up / at hub / out for delivery
+  push timeline) is roadmap; today's proactive alerts cover delay, failed
+  attempt, and weather.

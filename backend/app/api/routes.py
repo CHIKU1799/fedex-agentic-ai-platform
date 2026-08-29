@@ -1,4 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+import hmac
+
+from fastapi import APIRouter, Request, UploadFile, File, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -7,12 +9,14 @@ from app.schemas.request_schema import (
     RescheduleRequest, RedirectRequest, CancelRequest, HoldRequest, TokenResponse,
 )
 from app.agents.planner_agent import handle_user_query
+from app.agents import watch_agent
 from app.services.barcode_service import decode_barcode
 from app.services import shipment_ops
 from app.db.database import get_db
 from app.db.crud import get_shipment, create_shipment, mark_notification_read
+from app.core.config import settings
 from app.core.security import (
-    User, authenticate_user, create_access_token,
+    User, authenticate_user, create_access_token, decode_access_token,
     require_user, get_effective_user,
 )
 
@@ -131,6 +135,72 @@ def cancel(
 ):
     result = shipment_ops.cancel(db, user, payload.tracking_id, payload.reason or "")
     return {"message": "Shipment cancelled", **result}
+
+
+@router.get("/journey/{tracking_id}")
+def journey(
+    tracking_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_effective_user),
+):
+    """Animated-map payload: Dijkstra hub route (weather-adjusted), per-hub
+    risk, progress along the route, and the time-to-delivery countdown."""
+    return shipment_ops.journey_for(db, user, tracking_id)
+
+
+# ── Autonomous fleet watch (ops agent / scheduled cron) ──
+
+@router.api_route("/agent/fleet-watch", methods=["GET", "POST"])
+def fleet_watch(request: Request, db: Session = Depends(get_db)):
+    """
+    One proactive sweep over all active shipments: flag delays, exceptions
+    and weather threats, notify affected customers (deduplicated), and
+    return a triage report. Callable by a FedEx agent from the ops console,
+    or unattended by the scheduled cron using CRON_SECRET as bearer token.
+    """
+    auth = request.headers.get("authorization", "")
+    token = auth.split(" ", 1)[1].strip() if " " in auth else ""
+    cron_ok = bool(settings.CRON_SECRET and token
+                   and hmac.compare_digest(token, settings.CRON_SECRET))
+    if not cron_ok and settings.REQUIRE_AUTH:
+        try:
+            payload = decode_access_token(token)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if payload.get("role") != "agent":
+            raise HTTPException(status_code=403, detail="Only FedEx agents can run the fleet watch.")
+    return watch_agent.run_fleet_watch(db)
+
+
+# ── Customer memory (agent-written preferences) ──
+
+@router.get("/preferences/{customer_id}")
+def customer_preferences(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.preferences_for(db, user, customer_id)
+
+
+# ── Support cases (human handoff) ──
+
+@router.get("/cases")
+def all_support_cases(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Agent-only: every case, for the ops console."""
+    return shipment_ops.support_cases_for(db, user, "")
+
+
+@router.get("/cases/{customer_id}")
+def customer_support_cases(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.support_cases_for(db, user, customer_id)
 
 
 # ── Notifications (authenticated + authorized) ──

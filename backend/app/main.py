@@ -32,8 +32,11 @@ def health():
     from app.core.config import settings
     # Capability flags let the UI pick the right mode upfront (e.g. skip the
     # Whisper voice path entirely when no OpenAI key is configured).
+    from app.services.llm_service import available_provider_names
+    providers = available_provider_names()
     return {
         "status": "ok",
         "stt_whisper": bool(settings.OPENAI_API_KEY),
-        "llm": bool(settings.ANTHROPIC_API_KEY),
+        "llm": bool(providers),
+        "llm_providers": providers,
     }

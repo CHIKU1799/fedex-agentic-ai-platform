@@ -1,0 +1,87 @@
+@if (journey) {
+  <div class="journey">
+    @if (available) {
+      <div class="journey__header">
+        <span class="journey__title">🗺️ {{ journey!.origin }} → {{ journey!.destination }}</span>
+        <span class="journey__eta">{{ etaLabel }}</span>
+      </div>
+
+      <svg viewBox="0 0 800 340" class="journey__svg" role="img"
+           [attr.aria-label]="'Journey map for ' + journey!.tracking_id">
+        <!-- Cartoon sky -->
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#aee3ff" />
+            <stop offset="70%" stop-color="#e8f7ff" />
+          </linearGradient>
+          <linearGradient id="hills" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#b8e6a3" />
+            <stop offset="100%" stop-color="#8fd177" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="800" height="340" rx="18" fill="url(#sky)" />
+
+        <!-- Sun -->
+        <g class="sun">
+          <circle cx="726" cy="56" r="26" fill="#ffd93b" />
+          <circle cx="726" cy="56" r="34" fill="#ffd93b" opacity="0.25" />
+        </g>
+
+        <!-- Drifting clouds -->
+        <g class="cloud cloud--slow" transform="translate(90, 46)">
+          <ellipse cx="0" cy="0" rx="34" ry="16" fill="#fff" />
+          <ellipse cx="26" cy="-8" rx="26" ry="14" fill="#fff" />
+          <ellipse cx="-24" cy="-4" rx="22" ry="12" fill="#fff" />
+        </g>
+        <g class="cloud cloud--fast" transform="translate(420, 80)">
+          <ellipse cx="0" cy="0" rx="28" ry="13" fill="#fff" opacity="0.9" />
+          <ellipse cx="20" cy="-7" rx="20" ry="11" fill="#fff" opacity="0.9" />
+        </g>
+
+        <!-- Rolling hills -->
+        <path d="M 0 280 Q 130 236 260 274 T 520 272 T 800 268 L 800 340 L 0 340 Z"
+              fill="url(#hills)" />
+        <path d="M 0 300 Q 200 268 400 296 T 800 292 L 800 340 L 0 340 Z"
+              fill="#7cc466" opacity="0.9" />
+
+        <!-- Route: soft casing + marching dashes -->
+        <path [attr.d]="pathD" class="road-casing" />
+        <path [attr.d]="pathD" class="road-dashes" />
+
+        <!-- Hubs -->
+        @for (p of points; track p.name; let i = $index) {
+          <g [attr.transform]="'translate(' + p.x + ',' + p.y + ')'">
+            <circle r="7" class="hub" [class]="riskClass(p.risk)" />
+            @if (hubEmoji(i)) {
+              <text class="hub__emoji" y="-14" text-anchor="middle">{{ hubEmoji(i) }}</text>
+            }
+            <text class="hub__label" y="24" text-anchor="middle">{{ p.name }}</text>
+          </g>
+        }
+
+        <!-- Truck + shadow + ETA bubble, at the live progress point -->
+        <g [attr.transform]="'translate(' + truck.x + ',' + truck.y + ')'">
+          <ellipse class="truck-shadow" cy="10" rx="16" ry="4" />
+          <text class="truck" text-anchor="middle" y="2" transform="scale(-1,1)">🚚</text>
+          <g class="eta-bubble">
+            <rect x="-58" y="-52" width="116" height="26" rx="13" />
+            <text y="-34" text-anchor="middle">{{ etaLabel }}</text>
+          </g>
+        </g>
+      </svg>
+
+      <div class="journey__footer">
+        <span>{{ totalKm | number:'1.0-0' }} km via the FedEx hub network</span>
+        <span>·</span>
+        <span>~{{ transitHours | number:'1.0-0' }}h linehaul</span>
+        @if (rerouted) {
+          <span class="journey__reroute">⚠️ {{ explanation }}</span>
+        }
+      </div>
+    } @else {
+      <div class="journey__unavailable">
+        🗺️ {{ journey!.route.reason || 'Route map unavailable for this shipment.' }}
+      </div>
+    }
+  </div>
+}

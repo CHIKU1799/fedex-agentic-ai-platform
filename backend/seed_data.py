@@ -5,11 +5,18 @@ Usage: python -m seed_data   (from the backend/ folder)
 from app.db.database import Base, engine, SessionLocal
 from app.db.models import Shipment, Notification
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
+
+
+def _eta(days_from_now: int) -> str:
+    """ETAs are seeded relative to today so they always fall inside the
+    16-day weather forecast window (real forecasts, believable demo)."""
+    return (date.today() + timedelta(days=days_from_now)).isoformat()
+
 
 # ── Sample Shipments ──
 shipments = [
@@ -17,7 +24,7 @@ shipments = [
         "tracking_id": "FX100001",
         "status": "in_transit",
         "location": "Memphis, TN",
-        "eta": "2026-06-02",
+        "eta": _eta(3),
         "customer_id": "CUST001",
         "origin": "Los Angeles, CA",
         "destination": "New York, NY",
@@ -26,7 +33,7 @@ shipments = [
         "tracking_id": "FX100002",
         "status": "out_for_delivery",
         "location": "Chicago, IL",
-        "eta": "2026-05-28",
+        "eta": _eta(0),
         "customer_id": "CUST001",
         "origin": "Seattle, WA",
         "destination": "Chicago, IL",
@@ -35,7 +42,7 @@ shipments = [
         "tracking_id": "FX100003",
         "status": "delivered",
         "location": "Dallas, TX",
-        "eta": "2026-05-25",
+        "eta": _eta(-2),
         "customer_id": "CUST002",
         "origin": "Miami, FL",
         "destination": "Dallas, TX",
@@ -44,7 +51,7 @@ shipments = [
         "tracking_id": "FX100004",
         "status": "delayed",
         "location": "Denver, CO",
-        "eta": "2026-06-05",
+        "eta": _eta(5),
         "customer_id": "CUST002",
         "origin": "Boston, MA",
         "destination": "San Francisco, CA",
@@ -53,10 +60,20 @@ shipments = [
         "tracking_id": "FX100005",
         "status": "created",
         "location": "Atlanta, GA",
-        "eta": "2026-06-10",
+        "eta": _eta(8),
         "customer_id": "CUST003",
         "origin": "Atlanta, GA",
         "destination": "Portland, OR",
+    },
+    {
+        # The most common real-world failure mode: nobody home.
+        "tracking_id": "FX100006",
+        "status": "delivery_attempt_failed",
+        "location": "Brooklyn, NY",
+        "eta": _eta(1),
+        "customer_id": "CUST001",
+        "origin": "Chicago, IL",
+        "destination": "New York, NY",
     },
 ]
 
@@ -82,8 +99,16 @@ notifications = [
         "id": str(uuid.uuid4()),
         "customer_id": "CUST002",
         "tracking_id": "FX100004",
-        "message": "Your shipment has been delayed due to weather conditions. New ETA: June 5, 2026.",
+        "message": f"Your shipment has been delayed due to weather conditions. New ETA: {_eta(5)}.",
         "notification_type": "delay",
+        "is_read": "false",
+    },
+    {
+        "id": str(uuid.uuid4()),
+        "customer_id": "CUST001",
+        "tracking_id": "FX100006",
+        "message": "We missed you: a delivery attempt was unsuccessful. Reschedule or hold for pickup anytime.",
+        "notification_type": "delivery_attempt",
         "is_read": "false",
     },
 ]
@@ -110,5 +135,5 @@ db.commit()
 db.close()
 
 print("\nSeed data loaded successfully!")
-print("Sample tracking IDs: FX100001, FX100002, FX100003, FX100004, FX100005")
+print("Sample tracking IDs: FX100001, FX100002, FX100003, FX100004, FX100005, FX100006")
 print("Sample customer IDs: CUST001, CUST002, CUST003")

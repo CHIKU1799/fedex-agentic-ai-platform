@@ -2,6 +2,7 @@ import { Component, signal, ViewChild, ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { JourneyMapComponent, JourneyData } from '../journey-map/journey-map';
 
 interface TrackingCard {
   tracking_id: string;
@@ -49,16 +50,17 @@ interface ChatMessage {
   weatherTrackingId?: string;
   notificationCreated?: boolean;
   outlook?: DeliveryOutlook;
+  journey?: JourneyData;
   tokens?: number;
 }
 
 const SUGGESTIONS = [
   'Where is my package FX100001?',
+  'Show me the route for FX100001',
   'Will weather delay FX100001?',
   'Suggest better delivery dates for FX100004',
-  'Hold FX100002 for pickup',
-  'What are all my packages? (CUST001)',
-  'Reschedule FX100005 to 2026-12-20',
+  'Hold FX100006 for pickup',
+  'My package arrived damaged, I need help',
 ];
 
 // Friendly labels for the tools the agent can invoke.
@@ -72,12 +74,16 @@ const TOOL_LABELS: Record<string, string> = {
   check_weather_impact: 'Checked weather risk',
   suggest_delivery_dates: 'Suggested delivery dates',
   hold_at_location: 'Requested hold for pickup',
+  plan_optimal_route: 'Planned optimal route',
+  save_customer_preference: 'Remembered your preference',
+  get_customer_preferences: 'Recalled your preferences',
+  create_support_case: 'Opened a support case',
 };
 
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [FormsModule, CommonModule],
+  imports: [FormsModule, CommonModule, JourneyMapComponent],
   templateUrl: './chat.html',
   styleUrl: './chat.css'
 })
@@ -118,7 +124,9 @@ export class ChatComponent {
 
     this.api.askAI(q, this.sessionId).subscribe({
       next: (res) => {
-        this.messages.update(m => [...m, this.toMessage(res.response)]);
+        const msg = this.toMessage(res.response);
+        this.messages.update(m => [...m, msg]);
+        this.maybeAttachJourney(msg);
         this.loading.set(false);
         this.scrollSoon();
       },
@@ -182,9 +190,17 @@ export class ChatComponent {
       };
     }
 
-    // Inline tracking card / shipment list. Weather and outlook replies
-    // carry a tracking_id too, but render their own richer cards instead.
-    if (data.tracking_id && !msg.weather && !msg.outlook) {
+    // Journey payload (from the plan_optimal_route tool): render the map.
+    if (data.route?.route?.hubs || data.route?.available === false) {
+      msg.journey = data as JourneyData;
+      if (!resp.response) {
+        msg.text = `Here's how ${data.tracking_id} travels to you.`;
+      }
+    }
+
+    // Inline tracking card / shipment list. Weather, outlook and journey
+    // replies carry a tracking_id too, but render their own richer cards.
+    if (data.tracking_id && !msg.weather && !msg.outlook && !msg.journey) {
       msg.card = data as TrackingCard;
     }
     if (Array.isArray(data.shipments)) {
@@ -199,6 +215,20 @@ export class ChatComponent {
     }
 
     return msg;
+  }
+
+  /** Tracking replies get the animated journey map fetched alongside. */
+  private maybeAttachJourney(msg: ChatMessage): void {
+    const trackingId = msg.card?.tracking_id;
+    if (!trackingId || msg.journey) return;
+    this.api.getJourney(trackingId).subscribe({
+      next: (j) => {
+        msg.journey = j as JourneyData;
+        this.messages.update(m => [...m]);  // re-emit so the map renders
+        this.scrollSoon();
+      },
+      error: () => { /* map is a bonus — tracking card already rendered */ }
+    });
   }
 
   statusClass(status: string): string {

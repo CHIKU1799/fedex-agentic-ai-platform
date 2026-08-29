@@ -57,6 +57,11 @@
             </div>
           }
 
+          <!-- Animated journey map -->
+          @if (msg.journey) {
+            <app-journey-map [journey]="msg.journey" />
+          }
+
           <!-- Weather risk card -->
           @if (msg.weather) {
             <div class="weather-card" [class]="riskClass(msg.weather.risk)">

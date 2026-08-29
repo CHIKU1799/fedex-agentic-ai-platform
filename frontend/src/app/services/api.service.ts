@@ -85,6 +85,10 @@ export class ApiService {
     return this.http.post(`${API}/cancel`, { tracking_id: trackingId, reason });
   }
 
+  getJourney(trackingId: string): Observable<any> {
+    return this.http.get(`${API}/journey/${trackingId}`);
+  }
+
   getNotifications(customerId: string): Observable<any> {
     return this.http.get(`${API}/notifications/${customerId}`);
   }

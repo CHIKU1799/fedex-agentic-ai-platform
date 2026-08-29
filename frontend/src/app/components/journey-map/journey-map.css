@@ -1,0 +1,179 @@
+.journey {
+  margin-top: 10px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e3e8f0;
+  background: #fff;
+  max-width: 560px;
+}
+
+.journey__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
+  font-size: 0.85rem;
+}
+
+.journey__title {
+  font-weight: 700;
+  color: #2d1e6b;
+}
+
+.journey__eta {
+  background: #ff6600;
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.journey__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ── Sky life ── */
+
+.sun {
+  animation: sun-pulse 4s ease-in-out infinite;
+  transform-origin: 726px 56px;
+}
+
+@keyframes sun-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.cloud--slow { animation: drift 18s linear infinite; }
+.cloud--fast { animation: drift 11s linear infinite; }
+
+@keyframes drift {
+  0% { transform: translateX(-30px); }
+  50% { transform: translateX(40px); }
+  100% { transform: translateX(-30px); }
+}
+
+.cloud--slow { animation-name: drift-slow; }
+@keyframes drift-slow {
+  0% { transform: translate(90px, 46px); }
+  50% { transform: translate(150px, 46px); }
+  100% { transform: translate(90px, 46px); }
+}
+
+.cloud--fast { animation-name: drift-fast; }
+@keyframes drift-fast {
+  0% { transform: translate(420px, 80px); }
+  50% { transform: translate(360px, 80px); }
+  100% { transform: translate(420px, 80px); }
+}
+
+/* ── The route ── */
+
+.road-casing {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.road-dashes {
+  fill: none;
+  stroke: #4d148c; /* FedEx purple */
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 3 14;
+  animation: march 1.2s linear infinite;
+}
+
+@keyframes march {
+  to { stroke-dashoffset: -17; }
+}
+
+/* ── Hubs ── */
+
+.hub {
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.hub--low { fill: #34a853; }
+.hub--moderate { fill: #f9ab00; }
+.hub--high { fill: #ea4335; }
+
+.hub__emoji { font-size: 15px; }
+
+.hub__label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: #3d3d5c;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* ── Truck ── */
+
+.truck {
+  font-size: 26px;
+  animation: bob 0.9s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%, 100% { transform: scale(-1, 1) translateY(0); }
+  50% { transform: scale(-1, 1) translateY(-3px); }
+}
+
+.truck-shadow {
+  fill: #00000022;
+  animation: shadow-pulse 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes shadow-pulse {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.8); }
+}
+
+.eta-bubble rect {
+  fill: #2d1e6b;
+  opacity: 0.92;
+}
+
+.eta-bubble text {
+  fill: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ── Footer ── */
+
+.journey__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 14px 12px;
+  font-size: 0.75rem;
+  color: #5b5b77;
+}
+
+.journey__reroute {
+  flex-basis: 100%;
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.journey__unavailable {
+  padding: 12px 14px;
+  font-size: 0.85rem;
+  color: #5b5b77;
+}

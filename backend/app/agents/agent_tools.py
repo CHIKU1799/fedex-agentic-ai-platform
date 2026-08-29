@@ -160,6 +160,94 @@ TOOL_SCHEMAS = [
         }
     },
     {
+        "name": "plan_optimal_route",
+        "description": "Compute the shortest hub-to-hub route for a shipment (Dijkstra over the FedEx hub network), with live weather risk at each hub and an automatic reroute around high-risk hubs. Use when the user asks how their package will travel, why the route goes a certain way, whether weather will delay or reroute it, or how long transit will take.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tracking_id": {
+                    "type": "string",
+                    "description": "Tracking ID such as FX100001."
+                }
+            },
+            "required": [
+                "tracking_id"
+            ]
+        }
+    },
+    {
+        "name": "save_customer_preference",
+        "description": "Remember a durable customer preference for future conversations (e.g. delivery_window='after 6pm', preferred_pickup='FedEx Midtown', contact_channel='sms'). Use whenever the customer states a lasting preference, so they never have to repeat it.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "string",
+                    "description": "Customer ID such as CUST001."
+                },
+                "preference": {
+                    "type": "string",
+                    "description": "Short snake_case preference name, e.g. delivery_window."
+                },
+                "value": {
+                    "type": "string",
+                    "description": "The preference value, e.g. 'after 6pm on weekdays'."
+                }
+            },
+            "required": [
+                "customer_id",
+                "preference",
+                "value"
+            ]
+        }
+    },
+    {
+        "name": "get_customer_preferences",
+        "description": "List the stored preferences for a customer. Use to personalize suggestions (delivery windows, pickup points) before proposing an action.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "string",
+                    "description": "Customer ID such as CUST001."
+                }
+            },
+            "required": [
+                "customer_id"
+            ]
+        }
+    },
+    {
+        "name": "create_support_case",
+        "description": "Escalate to a human FedEx representative by opening a support case. Write a concise, factual summary of the customer's issue from this conversation (what happened, what was tried, what they need). Use for complaints, damaged/lost packages, refunds, or anything the tools cannot resolve.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "string",
+                    "description": "Customer ID such as CUST001."
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "Concise case summary written for the human rep."
+                },
+                "tracking_id": {
+                    "type": "string",
+                    "description": "Optional related tracking ID such as FX100001."
+                },
+                "priority": {
+                    "type": "string",
+                    "description": "low, normal, or high.",
+                    "enum": ["low", "normal", "high"]
+                }
+            },
+            "required": [
+                "customer_id",
+                "summary"
+            ]
+        }
+    },
+    {
         "name": "get_customer_notifications",
         "description": "List proactive notifications (delays, ETA updates, exceptions) for a customer ID.",
         "input_schema": {
@@ -203,6 +291,17 @@ def execute_tool(name: str, arguments: dict, db: Session, user: User) -> dict:
             return {"ok": True, "result": shipment_ops.hold_at_location(db, user, arguments["tracking_id"], arguments.get("location", ""))}
         if name == "get_customer_notifications":
             return {"ok": True, "result": shipment_ops.notifications_for(db, user, arguments["customer_id"])}
+        if name == "plan_optimal_route":
+            return {"ok": True, "result": shipment_ops.journey_for(db, user, arguments["tracking_id"])}
+        if name == "save_customer_preference":
+            return {"ok": True, "result": shipment_ops.save_preference(
+                db, user, arguments["customer_id"], arguments["preference"], arguments["value"])}
+        if name == "get_customer_preferences":
+            return {"ok": True, "result": shipment_ops.preferences_for(db, user, arguments["customer_id"])}
+        if name == "create_support_case":
+            return {"ok": True, "result": shipment_ops.open_support_case(
+                db, user, arguments["customer_id"], arguments["summary"],
+                arguments.get("tracking_id", ""), arguments.get("priority", "normal"))}
         return {"ok": False, "error": f"Unknown tool: {name}"}
     except HTTPException as exc:
         return {"ok": False, "error": exc.detail}

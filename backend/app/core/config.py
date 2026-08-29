@@ -20,6 +20,18 @@ class Settings:
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
     ANTHROPIC_MAX_TOKENS: int = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1024"))
+    # Groq is the no-cost fallback brain: an OpenAI-compatible tool-calling
+    # API, so the same agentic loop keeps running when Anthropic credits
+    # are exhausted. LLM_PROVIDER: "auto" (Anthropic first, Groq next),
+    # "anthropic", or "groq".
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "auto").lower()
+
+    # Shared secret that lets the scheduled fleet-watch cron invoke the
+    # autonomous ops agent without a user JWT (Vercel sends it as a
+    # Bearer token). Empty disables the cron path.
+    CRON_SECRET: str = os.getenv("CRON_SECRET", "")
     # OpenAI key is only used for Whisper STT (voice); optional.
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

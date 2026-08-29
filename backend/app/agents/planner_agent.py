@@ -22,8 +22,9 @@ from app.agents.agent_tools import TOOL_SCHEMAS, execute_tool
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.core.security import User
-from app.services import conversation_store, shipment_ops
-from app.services.llm_service import get_llm_client
+from app.db.crud import get_preferences
+from app.services import conversation_store, llm_service, shipment_ops
+from app.services.llm_service import AnthropicProvider, GroqProvider, ProviderBillingError, get_llm_client
 
 logger = get_logger()
 
@@ -47,7 +48,23 @@ _SYSTEM_PROMPT = (
     "authorized, or a shipment cannot be cancelled), explain it plainly and do "
     "not retry the same call. Use conversation history to resolve references "
     "like 'it' or 'that one'. Keep replies concise and friendly. Tracking IDs "
-    "look like FX100001."
+    "look like FX100001. You have durable memory: when the customer states a "
+    "lasting preference (delivery window, preferred pickup point, contact "
+    "channel), call save_customer_preference so they never repeat it, and use "
+    "any known preferences to personalize dates and options you propose. When "
+    "the issue is beyond your tools (damaged or lost package, refund, "
+    "complaint, or the customer asks for a human), call create_support_case "
+    "with a concise factual summary of the conversation so a FedEx "
+    "representative can take over with full context, and give the customer "
+    "their case ID. If the customer sounds frustrated, angry, or repeatedly "
+    "blocked, acknowledge it, and offer to open a support case (priority "
+    "'high' when the issue is urgent) rather than making them ask. When a "
+    "shipment status is delivery_attempt_failed, lead with an apology that "
+    "the driver missed them and immediately offer the two fixes: redeliver "
+    "on a chosen date, or hold for pickup. Use plan_optimal_route when the "
+    "user asks how their package will travel, why it goes a certain way, or "
+    "whether weather will reroute it — it computes the shortest hub path "
+    "and a weather-adjusted alternative you can explain."
 )
 
 
@@ -55,29 +72,52 @@ def _empty_usage() -> dict:
     return {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "model_calls": 0}
 
 
-def _add_usage(total: dict, response) -> None:
+def _add_usage(total: dict, turn) -> None:
     """Accumulate real token usage reported by the API across the tool loop."""
     total["model_calls"] += 1
-    usage = getattr(response, "usage", None)
-    if usage is None:
-        return
-    prompt = (
-        (getattr(usage, "input_tokens", 0) or 0)
-        + (getattr(usage, "cache_read_input_tokens", 0) or 0)
-        + (getattr(usage, "cache_creation_input_tokens", 0) or 0)
-    )
-    completion = getattr(usage, "output_tokens", 0) or 0
-    total["prompt_tokens"] += prompt
-    total["completion_tokens"] += completion
-    total["total_tokens"] += prompt + completion
+    total["prompt_tokens"] += turn.prompt_tokens
+    total["completion_tokens"] += turn.completion_tokens
+    total["total_tokens"] += turn.prompt_tokens + turn.completion_tokens
 
 
-def _run_agentic(query: str, db: Session, user: User, history: list) -> dict:
-    """Tool-calling loop against the Anthropic Messages API."""
+def _provider_chain() -> list:
+    """Configured, non-demoted providers in preference order.
+
+    Anthropic availability goes through ``get_llm_client()`` (tests patch it
+    on this module); Groq needs only its API key. A provider demoted at
+    runtime (billing/credential failure) is skipped for this process.
+    """
+    chain = []
+    pref = settings.LLM_PROVIDER
     client = get_llm_client()
+    if client is not None and pref in ("auto", "anthropic") and not llm_service.is_demoted("anthropic"):
+        chain.append(AnthropicProvider(client))
+    if settings.GROQ_API_KEY and pref in ("auto", "groq") and not llm_service.is_demoted("groq"):
+        chain.append(GroqProvider())
+    return chain
+
+
+def _preferences_context(db: Session, user: User) -> str:
+    """Durable memory injection: stored preferences ride along in the system
+    prompt so the agent personalizes without re-asking every session."""
+    if not user.customer_id:
+        return ""
+    try:
+        rows = get_preferences(db, user.customer_id)
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    rendered = "; ".join(f"{r.preference}={r.value}" for r in rows)
+    return f" Known preferences for this customer (use them when proposing options): {rendered}."
+
+
+def _run_agentic(provider, query: str, db: Session, user: User, history: list) -> dict:
+    """Provider-agnostic tool-calling loop (Anthropic or Groq)."""
     system = (
         _SYSTEM_PROMPT
         + f" The authenticated caller has role='{user.role}', customer_id={user.customer_id}."
+        + _preferences_context(db, user)
     )
     messages = list(history)  # prior turns for multi-turn context
     messages.append({"role": "user", "content": query})
@@ -86,48 +126,36 @@ def _run_agentic(query: str, db: Session, user: User, history: list) -> dict:
     usage = _empty_usage()
 
     for _ in range(_MAX_TOOL_ROUNDS):
-        response = client.messages.create(
-            model=settings.ANTHROPIC_MODEL,
-            max_tokens=settings.ANTHROPIC_MAX_TOKENS,
-            system=system,
-            messages=messages,
-            tools=TOOL_SCHEMAS,
-        )
-        _add_usage(usage, response)
-        tool_uses = [b for b in response.content if getattr(b, "type", "") == "tool_use"]
-        text = "".join(b.text for b in response.content if getattr(b, "type", "") == "text")
+        turn = provider.chat(system, messages, TOOL_SCHEMAS)
+        _add_usage(usage, turn)
 
-        if not tool_uses:
+        if not turn.tool_calls:
             return {
                 "intent": "agentic",
                 "actions_taken": actions_taken,
                 "data": structured_result or {},
-                "response": text,
+                "response": turn.text,
+                "llm_provider": provider.name,
                 "usage": usage,
             }
 
-        # Record the assistant turn (with its tool-use blocks) verbatim.
-        messages.append({"role": "assistant", "content": response.content})
+        messages.extend(provider.assistant_messages(turn))
 
         tool_results = []
-        for tu in tool_uses:
-            name = tu.name
-            args = dict(tu.input or {})
-            logger.info(f"Agent tool call: {name}({args}) as {user.role}")
-            outcome = execute_tool(name, args, db, user)
-            actions_taken.append({"tool": name, "arguments": args, "ok": outcome.get("ok", False)})
+        for call in turn.tool_calls:
+            logger.info(f"Agent tool call: {call.name}({call.args}) as {user.role}")
+            outcome = execute_tool(call.name, call.args, db, user)
+            actions_taken.append({"tool": call.name, "arguments": call.args, "ok": outcome.get("ok", False)})
             if outcome.get("ok") and "result" in outcome:
                 structured_result = outcome["result"]
             tool_results.append(
                 {
-                    "type": "tool_result",
-                    "tool_use_id": tu.id,
+                    "id": call.id,
                     "content": json.dumps(outcome, default=str),
                     "is_error": not outcome.get("ok", False),
                 }
             )
-        # All tool results for this turn go back in a single user message.
-        messages.append({"role": "user", "content": tool_results})
+        messages.extend(provider.tool_result_messages(tool_results))
 
     logger.warning("Agentic loop hit max tool rounds without a final answer.")
     return {
@@ -135,6 +163,7 @@ def _run_agentic(query: str, db: Session, user: User, history: list) -> dict:
         "actions_taken": actions_taken,
         "data": structured_result or {},
         "response": "I've taken the actions I could. Please let me know if you need anything else.",
+        "llm_provider": provider.name,
         "usage": usage,
     }
 
@@ -152,6 +181,9 @@ def _extract_tracking_id(query: str) -> str:
 def _detect_intent(query: str) -> str:
     q = query.lower()
     buckets = {
+        "escalate": ["complain", "complaint", "damaged", "broken", "missing item", "lost package",
+                     "refund", "escalate", "human agent", "speak to a person", "talk to a person",
+                     "support case", "representative"],
         "delivery_options": ["suggest", "delivery dates", "delivery options", "best date", "which day", "better date"],
         "reschedule": ["reschedule", "change date", "change delivery", "postpone"],
         "redirect": ["redirect", "change address", "different address", "send to"],
@@ -221,11 +253,52 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
                 continue
         return {"intent": "weather", "data": {"message": f"No shipment found for {tracking_id}"}}
 
+    if intent == "hold":
+        # Hold needs no structured arguments beyond the tracking ID, so the
+        # offline router can execute it for real, like track/weather do.
+        tracking_id = _extract_tracking_id(query)
+        if not tracking_id:
+            return {"intent": "hold",
+                    "data": {"message": "Give me a tracking ID (e.g. FX100001) and I'll arrange a hold for pickup."}}
+        candidates = [tracking_id]
+        if not tracking_id.upper().startswith("FX"):
+            candidates.append(f"FX{tracking_id}")
+        for candidate in candidates:
+            try:
+                result = shipment_ops.hold_at_location(db, user, candidate)
+                result["message"] = f"Your package will be held for pickup at {result['pickup_location']}."
+                return {"intent": "hold", "data": result}
+            except Exception:
+                continue
+        return {"intent": "hold",
+                "data": {"message": f"Could not arrange a hold for {tracking_id}. "
+                                    "Please log in, or check the tracking ID."}}
+
+    if intent == "escalate":
+        # Even fully offline, escalation to a human still works: the raw
+        # query becomes the case summary for an authenticated customer.
+        if user.customer_id:
+            tracking_id = _extract_tracking_id(query)
+            if tracking_id and not tracking_id.upper().startswith("FX"):
+                tracking_id = f"FX{tracking_id}"
+            try:
+                result = shipment_ops.open_support_case(
+                    db, user, user.customer_id, f"Customer reported: {query}", tracking_id or "")
+                result["message"] = (
+                    f"I've opened support case {result['case_id']} for you. "
+                    "A FedEx representative will follow up shortly."
+                )
+                return {"intent": "escalate", "data": result}
+            except Exception:
+                pass
+        return {"intent": "escalate",
+                "data": {"message": "Please log in so I can open a support case for you, "
+                                    "or call FedEx customer care."}}
+
     guidance = {
         "reschedule": "To reschedule, use POST /reschedule with your tracking_id and new_date.",
         "redirect": "To redirect, use POST /redirect with your tracking_id and new_address.",
         "cancel": "To cancel, use POST /cancel with your tracking_id.",
-        "hold": "To hold your package for pickup, use POST /hold with your tracking_id (and an optional location).",
         "notification": "To view notifications, use GET /notifications/{customer_id}.",
     }
     if intent in guidance:
@@ -246,12 +319,18 @@ def handle_user_query(query: str, db: Session, user: User, session_id: str = "")
     persisted afterwards.
     """
     try:
-        if get_llm_client() is not None:
-            history = conversation_store.get_history(session_id)
-            result = _run_agentic(query, db, user, history)
-            # Persist only the final user/assistant text — not tool scaffolding.
-            conversation_store.append_turn(session_id, query, result.get("response", ""))
-            return result
+        for provider in _provider_chain():
+            try:
+                history = conversation_store.get_history(session_id)
+                result = _run_agentic(provider, query, db, user, history)
+                # Persist only the final user/assistant text — not tool scaffolding.
+                conversation_store.append_turn(session_id, query, result.get("response", ""))
+                return result
+            except ProviderBillingError as exc:
+                # Out of credits / bad key: demote for this process and try
+                # the next brain instead of dropping to the keyword router.
+                logger.warning(f"Provider '{provider.name}' unavailable ({exc}); trying next provider.")
+                llm_service.demote(provider.name)
         result = _run_fallback(query, db, user)
         result.setdefault("usage", _empty_usage())
         return result

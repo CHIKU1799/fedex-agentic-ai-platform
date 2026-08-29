@@ -3,6 +3,9 @@
   "buildCommand": "cd frontend && npx ng build",
   "outputDirectory": "frontend/dist/fedex-ui/browser",
   "framework": null,
+  "crons": [
+    { "path": "/api/agent/fleet-watch", "schedule": "0 3 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }

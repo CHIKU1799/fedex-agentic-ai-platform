@@ -12,6 +12,10 @@ os.environ["JWT_SECRET"] = "test-secret-fixed-value"
 os.environ["ENV"] = "development"
 os.environ["RATE_LIMIT_REQUESTS"] = "100000"
 os.environ["OPENAI_API_KEY"] = ""  # default: offline/fallback unless a test injects a fake client
+os.environ["ANTHROPIC_API_KEY"] = ""  # never let tests reach the real API
+os.environ["GROQ_API_KEY"] = ""    # tests opt in to the Groq provider explicitly
+os.environ["LLM_PROVIDER"] = "auto"
+os.environ["CRON_SECRET"] = "test-cron-secret"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +23,15 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.db.database import Base, engine, SessionLocal
 from app.db.models import Shipment, Notification
+
+
+@pytest.fixture(autouse=True)
+def fresh_llm_state():
+    """Provider demotion is process-sticky by design; isolate it per test."""
+    from app.services import llm_service
+    llm_service._demoted.clear()
+    yield
+    llm_service._demoted.clear()
 
 
 @pytest.fixture(autouse=True)
