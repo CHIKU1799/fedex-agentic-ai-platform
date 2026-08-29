@@ -516,3 +516,55 @@ def test_journey_trace_checkpoints(client, monkeypatch):
     assert trace[-1]["label"].startswith("Delivery in")
     states = {t["state"] for t in trace}
     assert "current" in states and "upcoming" in states
+
+
+# ── Offline mini-planner (agentic without a key) ──
+
+def test_fallback_lists_own_shipments(client, monkeypatch, cust001_auth):
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+    resp = client.post("/ask", json={"query": "what are all my packages?"}, headers=cust001_auth)
+    data = resp.json()["response"]["data"]
+    assert len(data["shipments"]) == 1  # CUST001 seeds FX100001 in tests
+    assert "1 package" in data["message"]
+
+
+def test_fallback_reschedule_with_date_executes_verified(client, monkeypatch, cust001_auth):
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+    resp = client.post("/ask", json={"query": "reschedule FX100001 to 2026-09-10"},
+                       headers=cust001_auth)
+    data = resp.json()["response"]["data"]
+    assert data["verified"] is True
+    assert "verified" in data["message"]
+    assert client.get("/track/FX100001").json()["eta"] == "2026-09-10"
+
+
+def test_fallback_weather_chains_outlook_when_risky(client, monkeypatch, cust001_auth):
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+    monkeypatch.setattr(weather_service, "destination_weather",
+                        lambda destination, eta: {"available": True, "risk": "high",
+                                                  "eta_within_forecast": True,
+                                                  "conditions": "heavy snowfall"})
+    monkeypatch.setattr(weather_service, "upcoming_daily_risk",
+                        lambda destination, days=7: {"available": True, "days": [
+                            {"date": "2026-06-02", "risk": "high", "conditions": "snow"},
+                            {"date": "2026-06-03", "risk": "low", "conditions": "clear"}]})
+    resp = client.post("/ask", json={"query": "will weather delay FX100001?"}, headers=cust001_auth)
+    data = resp.json()["response"]["data"]
+    assert data["weather"]["risk"] == "high"
+    assert data["recommended_date"] == "2026-06-03"  # chained in the same reply
+    assert data["outlook"]["days"]
+
+
+def test_fallback_saves_preference(client, monkeypatch, cust001_auth):
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+    resp = client.post("/ask", json={"query": "always deliver after 6 pm please"}, headers=cust001_auth)
+    data = resp.json()["response"]["data"]
+    assert data["saved"] is True
+    prefs = client.get("/preferences/CUST001", headers=cust001_auth).json()["preferences"]
+    assert prefs[0]["value"] == "after 6 pm"
+
+
+def test_customer_shipments_route_scoped(client, cust001_auth, cust002_auth):
+    resp = client.get("/customers/CUST001/shipments", headers=cust001_auth)
+    assert resp.status_code == 200 and len(resp.json()["shipments"]) == 1
+    assert client.get("/customers/CUST001/shipments", headers=cust002_auth).status_code == 403

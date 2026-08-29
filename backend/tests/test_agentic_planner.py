@@ -85,4 +85,6 @@ def test_fallback_mutation_gives_guidance_not_action(client, monkeypatch):
     r = client.post("/ask", json={"query": "cancel my shipment"})
     body = r.json()["response"]
     assert body["intent"] == "cancel"
-    assert "/cancel" in body["data"]["message"]
+    # Guidance, never action: cancelling requires explicit confirmation.
+    assert "confirmation" in body["data"]["message"]
+    assert client.get("/track/FX100001").json()["status"] == "in_transit"

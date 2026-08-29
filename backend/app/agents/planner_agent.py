@@ -228,6 +228,9 @@ def _detect_intent(query: str) -> str:
         "escalate": ["complain", "complaint", "damaged", "broken", "missing item", "lost package",
                      "refund", "escalate", "human agent", "speak to a person", "talk to a person",
                      "support case", "representative"],
+        "preference": ["always deliver", "prefer", "preference", "evening delivery", "morning delivery"],
+        "list": ["my packages", "my shipments", "all my package", "my orders", "my deliveries",
+                 "list my", "what are all"],
         "delivery_options": ["suggest", "delivery dates", "delivery options", "best date", "which day", "better date"],
         "reschedule": ["reschedule", "change date", "change delivery", "postpone"],
         "redirect": ["redirect", "change address", "different address", "send to"],
@@ -265,6 +268,78 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
                 continue
         return {"intent": "track", "data": {"message": f"No shipment found for {tracking_id}"}}
 
+    if intent == "list":
+        if not user.customer_id:
+            return {"intent": "list",
+                    "data": {"message": "Please sign in and I'll list all your packages."}}
+        outcome = execute_tool("list_customer_shipments", {"customer_id": user.customer_id},
+                               db, user, provider="offline")
+        if outcome.get("ok"):
+            result = outcome["result"]
+            count = len(result.get("shipments", []))
+            result["message"] = (f"You have {count} package{'s' if count != 1 else ''} on file. "
+                                 "Tap one in the Track tab to see its live map.")
+            return {"intent": "list", "data": result}
+        return {"intent": "list", "data": {"message": "Could not list your shipments right now."}}
+
+    if intent == "preference":
+        if not user.customer_id:
+            return {"intent": "preference",
+                    "data": {"message": "Please sign in so I can remember your preference."}}
+        m = re.search(r"(after|before)\s+\d{1,2}\s*(am|pm)", query.lower())
+        value = m.group(0) if m else next(
+            (w for w in ("evening", "morning", "afternoon", "weekend", "weekday") if w in query.lower()), "")
+        if not value:
+            return {"intent": "preference",
+                    "data": {"message": "Tell me the preference concretely, e.g. 'always deliver after 6pm' "
+                                        "or 'prefer weekend delivery', and I'll remember it."}}
+        outcome = execute_tool("save_customer_preference",
+                               {"customer_id": user.customer_id,
+                                "preference": "delivery_window", "value": value},
+                               db, user, provider="offline")
+        if outcome.get("ok"):
+            return {"intent": "preference",
+                    "data": {**outcome["result"],
+                             "message": f"Got it. I'll remember you prefer delivery {value}, "
+                                        "and every future plan will respect it."}}
+        return {"intent": "preference", "data": {"message": "Could not save that preference right now."}}
+
+    if intent == "notification":
+        if user.customer_id:
+            outcome = execute_tool("get_customer_notifications", {"customer_id": user.customer_id},
+                                   db, user, provider="offline")
+            if outcome.get("ok"):
+                result = outcome["result"]
+                unread = sum(1 for n in result.get("notifications", []) if n.get("is_read") != "true")
+                result["message"] = (f"You have {unread} unread notification{'s' if unread != 1 else ''}. "
+                                     "The Notifications tab has the full list.")
+                return {"intent": "notification", "data": result}
+        return {"intent": "notification",
+                "data": {"message": "Sign in and I'll read you your notifications, "
+                                    "or open the Notifications tab."}}
+
+    if intent == "reschedule":
+        # With an explicit date the offline router acts for real (tier 2,
+        # verified); without one it asks instead of guessing.
+        tracking_id = _extract_tracking_id(query)
+        new_date = _extract_deadline(query)
+        if tracking_id and not tracking_id.upper().startswith("FX"):
+            tracking_id = f"FX{tracking_id}"
+        if tracking_id and new_date:
+            outcome = execute_tool("reschedule_delivery",
+                                   {"tracking_id": tracking_id, "new_date": new_date},
+                                   db, user, provider="offline")
+            if outcome.get("ok"):
+                return {"intent": "reschedule",
+                        "data": {**outcome["result"],
+                                 "message": f"Done: {tracking_id} is rescheduled to {new_date}, "
+                                            "and I verified the change took effect."}}
+            return {"intent": "reschedule",
+                    "data": {"message": f"Could not reschedule {tracking_id}: {outcome.get('error', 'unknown error')}"}}
+        return {"intent": "reschedule",
+                "data": {"message": "Tell me the tracking ID and the new date, "
+                                    "e.g. 'reschedule FX100001 to friday' or a YYYY-MM-DD date."}}
+
     if intent == "delivery_options":
         tracking_id = _extract_tracking_id(query)
         if not tracking_id:
@@ -292,9 +367,20 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
         for candidate in candidates:
             try:
                 result = shipment_ops.weather_impact(db, user, candidate)
-                return {"intent": "weather", "data": result}
             except Exception:
                 continue
+            # Multi-step even offline: when risk is elevated, chain the
+            # safe-date outlook into the same reply so the customer gets a
+            # plan, not just a warning.
+            risk = (result.get("weather") or {}).get("risk")
+            if risk in ("moderate", "high") and result.get("status") not in ("delivered", "cancelled"):
+                try:
+                    options = shipment_ops.suggest_delivery_dates(db, user, candidate)
+                    result["outlook"] = options.get("outlook")
+                    result["recommended_date"] = options.get("recommended_date")
+                except Exception:
+                    pass
+            return {"intent": "weather", "data": result}
         return {"intent": "weather", "data": {"message": f"No shipment found for {tracking_id}"}}
 
     if intent == "commitment":
@@ -370,18 +456,22 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
                                     "or call FedEx customer care."}}
 
     guidance = {
-        "reschedule": "To reschedule, use POST /reschedule with your tracking_id and new_date.",
-        "redirect": "To redirect, use POST /redirect with your tracking_id and new_address.",
-        "cancel": "To cancel, use POST /cancel with your tracking_id.",
-        "notification": "To view notifications, use GET /notifications/{customer_id}.",
+        "redirect": "Redirecting a package is a high-impact change, so I only do it after an "
+                    "explicit confirmation. Use the Actions tab to redirect, or ask again once "
+                    "the AI planner is online.",
+        "cancel": "Cancelling is a high-impact change, so I only do it after an explicit "
+                  "confirmation. Use the Actions tab to cancel, or ask again once the AI "
+                  "planner is online.",
     }
     if intent in guidance:
         return {"intent": intent, "data": {"message": guidance[intent]}}
 
     return {
         "intent": "general",
-        "data": {"response": "AI assistant is offline (no Anthropic key configured). "
-                             "I can still track shipments — try 'track FX100001'."},
+        "data": {"response": "I can track packages, show routes and weather risk, reschedule to a "
+                             "date, hold for pickup, remember preferences, take delivery-deadline "
+                             "commitments, and open support cases. Try 'where is FX100001?' or "
+                             "'I need FX100001 before friday'."},
     }
 
 

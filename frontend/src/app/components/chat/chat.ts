@@ -58,10 +58,12 @@ interface ChatMessage {
 }
 
 const SUGGESTIONS = [
-  'Where is my package FX100001?',
+  'What are all my packages?',
   'Show me the route for FX100001',
   'I need FX100001 delivered before friday',
   'Will weather delay FX100001?',
+  'Reschedule FX100001 to friday',
+  'Always deliver after 6pm',
   'Hold FX100006 for pickup',
   'My package arrived damaged, I need help',
 ];

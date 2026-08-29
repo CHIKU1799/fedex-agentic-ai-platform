@@ -215,5 +215,10 @@ def plan_route(origin: str, destination: str, risk_lookup=None) -> dict:
             "est_transit_hours": round(chosen["km"] / _AVG_SPEED_KMH, 1),
         },
         "baseline_hubs": baseline["hubs"],
+        # Coordinates for the UI's "route we avoided" ghost path.
+        "baseline_route": (
+            [{"name": h, "lat": HUBS[h][0], "lon": HUBS[h][1]} for h in baseline["hubs"]]
+            if rerouted else []
+        ),
         "explanation": explanation,
     }

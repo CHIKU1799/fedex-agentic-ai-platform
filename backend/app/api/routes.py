@@ -106,6 +106,17 @@ def create_new_shipment(
     return create_shipment(db, payload.model_dump())
 
 
+# ── Customer shipments (for the Track tab quick chips) ──
+
+@router.get("/customers/{customer_id}/shipments")
+def customer_shipments(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.list_for_customer(db, user, customer_id)
+
+
 # ── Reschedule / Redirect / Cancel (authenticated + authorized) ──
 
 @router.post("/reschedule")

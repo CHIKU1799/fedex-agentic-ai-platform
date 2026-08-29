@@ -89,6 +89,10 @@ export class ApiService {
     return this.http.get(`${API}/journey/${trackingId}`);
   }
 
+  getShipments(customerId: string): Observable<any> {
+    return this.http.get(`${API}/customers/${customerId}/shipments`);
+  }
+
   getAgentAnalytics(): Observable<any> {
     return this.http.get(`${API}/analytics/agent`);
   }

@@ -2,76 +2,110 @@
   <div class="journey">
     @if (available) {
       <div class="journey__header">
-        <span class="journey__title">🗺️ {{ journey!.origin }} → {{ journey!.destination }}</span>
+        <span class="journey__title">{{ journey!.origin }} <span class="journey__arrow">➜</span> {{ journey!.destination }}</span>
         <span class="journey__eta">{{ etaLabel }}</span>
       </div>
 
-      <svg viewBox="0 0 800 340" class="journey__svg" role="img"
+      <svg viewBox="0 0 900 400" class="journey__svg" role="img"
            [attr.aria-label]="'Journey map for ' + journey!.tracking_id">
-        <!-- Cartoon sky -->
         <defs>
           <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#aee3ff" />
-            <stop offset="70%" stop-color="#e8f7ff" />
+            <stop offset="0%" stop-color="#7ec8f2" />
+            <stop offset="55%" stop-color="#c7e8fb" />
+            <stop offset="100%" stop-color="#eef8ff" />
           </linearGradient>
-          <linearGradient id="hills" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#b8e6a3" />
-            <stop offset="100%" stop-color="#8fd177" />
+          <radialGradient id="sunGlow">
+            <stop offset="0%" stop-color="#ffdf6b" stop-opacity="0.95" />
+            <stop offset="55%" stop-color="#ffdf6b" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="#ffdf6b" stop-opacity="0" />
+          </radialGradient>
+          <linearGradient id="hillBack" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#b5dcb0" />
+            <stop offset="100%" stop-color="#9ccf96" />
+          </linearGradient>
+          <linearGradient id="hillFront" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#8cc776" />
+            <stop offset="100%" stop-color="#6fb45c" />
           </linearGradient>
         </defs>
-        <rect x="0" y="0" width="800" height="340" rx="18" fill="url(#sky)" />
+
+        <rect x="0" y="0" width="900" height="400" rx="16" fill="url(#sky)" />
 
         <!-- Sun -->
         <g class="sun">
-          <circle cx="726" cy="56" r="26" fill="#ffd93b" />
-          <circle cx="726" cy="56" r="34" fill="#ffd93b" opacity="0.25" />
+          <circle cx="812" cy="70" r="52" fill="url(#sunGlow)" />
+          <circle cx="812" cy="70" r="24" fill="#ffd93b" />
         </g>
 
-        <!-- Drifting clouds -->
-        <g class="cloud cloud--slow" transform="translate(90, 46)">
-          <ellipse cx="0" cy="0" rx="34" ry="16" fill="#fff" />
-          <ellipse cx="26" cy="-8" rx="26" ry="14" fill="#fff" />
-          <ellipse cx="-24" cy="-4" rx="22" ry="12" fill="#fff" />
+        <!-- Birds -->
+        <path class="bird" d="M 200 84 q 7 -8 14 0 q 7 -8 14 0" />
+        <path class="bird bird--2" d="M 560 60 q 6 -7 12 0 q 6 -7 12 0" />
+
+        <!-- Clouds -->
+        <g class="cloud cloud--a">
+          <ellipse cx="0" cy="0" rx="40" ry="17" fill="#fff" />
+          <ellipse cx="30" cy="-10" rx="30" ry="15" fill="#fff" />
+          <ellipse cx="-30" cy="-6" rx="26" ry="13" fill="#fff" />
         </g>
-        <g class="cloud cloud--fast" transform="translate(420, 80)">
-          <ellipse cx="0" cy="0" rx="28" ry="13" fill="#fff" opacity="0.9" />
-          <ellipse cx="20" cy="-7" rx="20" ry="11" fill="#fff" opacity="0.9" />
+        <g class="cloud cloud--b">
+          <ellipse cx="0" cy="0" rx="30" ry="13" fill="#fff" opacity="0.92" />
+          <ellipse cx="22" cy="-8" rx="22" ry="11" fill="#fff" opacity="0.92" />
+        </g>
+        <g class="cloud cloud--c">
+          <ellipse cx="0" cy="0" rx="24" ry="10" fill="#fff" opacity="0.8" />
+          <ellipse cx="18" cy="-6" rx="17" ry="9" fill="#fff" opacity="0.8" />
         </g>
 
-        <!-- Rolling hills -->
-        <path d="M 0 280 Q 130 236 260 274 T 520 272 T 800 268 L 800 340 L 0 340 Z"
-              fill="url(#hills)" />
-        <path d="M 0 300 Q 200 268 400 296 T 800 292 L 800 340 L 0 340 Z"
-              fill="#7cc466" opacity="0.9" />
+        <!-- Hills, back to front -->
+        <path d="M 0 320 Q 150 268 300 306 T 620 300 T 900 296 L 900 400 L 0 400 Z" fill="url(#hillBack)" />
+        <path d="M 0 344 Q 220 300 440 334 T 900 330 L 900 400 L 0 400 Z" fill="url(#hillFront)" />
+        <path d="M 0 372 Q 300 344 600 366 T 900 362 L 900 400 L 0 400 Z" fill="#5da84b" opacity="0.9" />
 
-        <!-- Route: soft casing + marching dashes + solid traveled trace -->
+        <!-- Ghost path: the storm route the planner avoided -->
+        @if (ghostD) {
+          <path [attr.d]="ghostD" class="road-ghost" />
+          @for (a of avoidedHubs; track a.name) {
+            <g [attr.transform]="'translate(' + a.x + ',' + a.y + ')'">
+              <text class="ghost__emoji" text-anchor="middle" y="-8">⛈️</text>
+              <circle r="5" class="ghost__dot" />
+              <text class="ghost__label" y="20" text-anchor="middle">{{ a.name }} (avoided)</text>
+            </g>
+          }
+        }
+
+        <!-- The route: casing, marching dashes, solid traveled trace -->
         <path [attr.d]="pathD" class="road-casing" />
-        <path [attr.d]="pathD" class="road-dashes" />
+        <path #routePath [attr.d]="pathD" class="road-dashes" />
         <path [attr.d]="pathD" class="road-traveled" pathLength="1"
               [attr.stroke-dasharray]="animProgress() + ' 1'" />
 
-        <!-- Hubs -->
+        <!-- Hubs with label pills -->
         @for (p of points; track p.name; let i = $index) {
           <g [attr.transform]="'translate(' + p.x + ',' + p.y + ')'">
-            <circle r="7" class="hub" [class]="riskClass(p.risk)"
+            <circle r="8" class="hub" [class]="riskClass(p.risk)"
                     [class.hub--done]="hubDone(i)" />
             @if (hubDone(i)) {
-              <text class="hub__check" text-anchor="middle" y="3.5">✓</text>
+              <text class="hub__check" text-anchor="middle" y="4">✓</text>
             }
             @if (hubEmoji(i)) {
-              <text class="hub__emoji" y="-14" text-anchor="middle">{{ hubEmoji(i) }}</text>
+              <text class="hub__emoji" y="-16" text-anchor="middle">{{ hubEmoji(i) }}</text>
             }
-            <text class="hub__label" y="24" text-anchor="middle">{{ p.name }}</text>
+            <g [attr.transform]="'translate(0, 16)'">
+              <rect class="hub__pill" [attr.x]="-labelWidth(p.name) / 2" y="0"
+                    [attr.width]="labelWidth(p.name)" height="20" rx="10" />
+              <text class="hub__label" y="14" text-anchor="middle">{{ p.name }}</text>
+            </g>
           </g>
         }
 
-        <!-- Truck + shadow + ETA bubble, at the live progress point -->
+        <!-- Truck, shadow, ETA bubble at the live progress point -->
         <g [attr.transform]="'translate(' + truck.x + ',' + truck.y + ')'">
-          <ellipse class="truck-shadow" cy="10" rx="16" ry="4" />
-          <text class="truck" text-anchor="middle" y="2" transform="scale(-1,1)">🚚</text>
+          <ellipse class="truck-shadow" cy="12" rx="20" ry="5" />
+          <text class="truck" text-anchor="middle" y="4">🚚</text>
           <g class="eta-bubble">
-            <rect x="-58" y="-52" width="116" height="26" rx="13" />
-            <text y="-34" text-anchor="middle">{{ etaLabel }}</text>
+            <path d="M -6 -26 L 0 -18 L 6 -26 Z" class="eta-bubble__tip" />
+            <rect x="-64" y="-52" width="128" height="28" rx="14" />
+            <text y="-33" text-anchor="middle">{{ etaLabel }}</text>
           </g>
         </g>
       </svg>
@@ -80,6 +114,11 @@
         <span>{{ totalKm | number:'1.0-0' }} km via the FedEx hub network</span>
         <span>·</span>
         <span>~{{ transitHours | number:'1.0-0' }}h linehaul</span>
+        <span class="journey__legend">
+          <span class="dotk dotk--low"></span> clear
+          <span class="dotk dotk--moderate"></span> watch
+          <span class="dotk dotk--high"></span> storm
+        </span>
         @if (rerouted) {
           <span class="journey__reroute">⚠️ {{ explanation }}</span>
         }

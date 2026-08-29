@@ -1,57 +1,80 @@
 <div class="tracking-container">
-  <h2>Track Your Shipment</h2>
-  <div class="search-bar">
-    <input
-      type="text"
-      [ngModel]="trackingId()"
-      (ngModelChange)="trackingId.set($event)"
-      placeholder="Enter tracking ID (e.g., FX100001)"
-      (keyup.enter)="track()"
-    />
-    <button (click)="track()" [disabled]="loading()">
-      {{ loading() ? 'Tracking...' : 'Track' }}
-    </button>
+  <div class="track-head">
+    <div>
+      <h2>Live Tracking</h2>
+      <p class="track-sub">Every package on its real route, with weather-aware ETAs.</p>
+    </div>
+    <div class="search-bar">
+      <input
+        type="text"
+        [ngModel]="trackingId()"
+        (ngModelChange)="trackingId.set($event)"
+        placeholder="Tracking ID, e.g. FX100001"
+        (keyup.enter)="track()"
+      />
+      <button (click)="track()" [disabled]="loading()">
+        {{ loading() ? 'Tracking…' : 'Track' }}
+      </button>
+    </div>
   </div>
+
+  @if (chips().length) {
+    <div class="chips-row" role="list">
+      @for (c of chips(); track c.tracking_id) {
+        <button class="ship-chip" role="listitem"
+                [class.ship-chip--active]="c.tracking_id === trackingId().toUpperCase()"
+                (click)="trackId(c.tracking_id)">
+          <span class="ship-chip__id">{{ c.tracking_id }}</span>
+          @if (c.status) {
+            <span class="ship-chip__dot" [class]="statusClass(c.status)"></span>
+            <span class="ship-chip__status">{{ statusLabel(c.status) }}</span>
+          }
+        </button>
+      }
+    </div>
+  }
 
   @if (error()) {
     <div class="error-msg">{{ error() }}</div>
   }
 
-  @if (result()) {
-    <div class="result-card">
-      <div class="status-badge" [class]="result().status">
-        {{ result().status | uppercase }}
-      </div>
-      <div class="detail-grid">
-        <div class="detail">
-          <span class="label">Tracking ID</span>
-          <span class="value">{{ result().tracking_id }}</span>
+  @if (result(); as r) {
+    <div class="result-grid">
+      <aside class="detail-panel">
+        <div class="detail-panel__status" [class]="statusClass(r.status)">
+          {{ statusLabel(r.status) }}
         </div>
-        <div class="detail">
-          <span class="label">Current Location</span>
-          <span class="value">{{ result().location }}</span>
+        <div class="countdown">
+          <span class="countdown__value">{{ countdown() }}</span>
+          <span class="countdown__label">until delivery · ETA {{ r.eta }}</span>
         </div>
-        <div class="detail">
-          <span class="label">ETA</span>
-          <span class="value">{{ result().eta }}</span>
-        </div>
-        <div class="detail">
-          <span class="label">Origin</span>
-          <span class="value">{{ result().origin }}</span>
-        </div>
-        <div class="detail">
-          <span class="label">Destination</span>
-          <span class="value">{{ result().destination }}</span>
-        </div>
-        <div class="detail">
-          <span class="label">Customer ID</span>
-          <span class="value">{{ result().customer_id }}</span>
-        </div>
+        @if (destinationRisk(); as risk) {
+          <div class="risk-chip" [class]="'risk-chip--' + risk">
+            {{ risk === 'high' ? '⛈️ Storm risk at destination'
+               : risk === 'moderate' ? '🌦️ Weather watch at destination'
+               : '☀️ Clear at destination' }}
+          </div>
+        }
+        <dl class="detail-list">
+          <div><dt>Tracking ID</dt><dd class="mono">{{ r.tracking_id }}</dd></div>
+          <div><dt>Current location</dt><dd>{{ r.location }}</dd></div>
+          <div><dt>From</dt><dd>{{ r.origin }}</dd></div>
+          <div><dt>To</dt><dd>{{ r.destination }}</dd></div>
+          @if (r.customer_id) {
+            <div><dt>Customer</dt><dd class="mono">{{ r.customer_id }}</dd></div>
+          }
+        </dl>
+        <p class="detail-tip">Need a change? Ask FedE: "hold {{ r.tracking_id }} for pickup"
+        or "I need {{ r.tracking_id }} before friday".</p>
+      </aside>
+
+      <div class="map-panel">
+        @if (journey()) {
+          <app-journey-map [journey]="journey()!" />
+        } @else {
+          <div class="map-skeleton">Plotting the route…</div>
+        }
       </div>
     </div>
-
-    @if (journey()) {
-      <app-journey-map [journey]="journey()!" />
-    }
   }
 </div>

@@ -1,34 +1,236 @@
-.tracking-container { max-width: 700px; margin: 0 auto; }
-.search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+.tracking-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 26px 18px 40px;
+}
+
+.track-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.track-head h2 {
+  color: #4d148c;
+  margin: 0 0 2px;
+  font-size: 1.5rem;
+}
+
+.track-sub {
+  margin: 0;
+  color: #6b6b85;
+  font-size: 0.9rem;
+}
+
+.search-bar {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+  max-width: 420px;
+}
+
 .search-bar input {
-  flex: 1; padding: 12px 16px; font-size: 16px;
-  border: 2px solid #ddd; border-radius: 6px; outline: none;
+  flex: 1;
+  border: 2px solid #4d148c;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  min-width: 0;
 }
-.search-bar input:focus { border-color: #4d148c; }
+
+.search-bar input:focus-visible {
+  outline: 2px solid #ff6600;
+  outline-offset: 1px;
+}
+
 .search-bar button {
-  padding: 12px 28px; background: #4d148c; color: #fff;
-  border: none; border-radius: 6px; font-size: 16px; cursor: pointer;
+  background: #4d148c;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.search-bar button:hover { background: #3a0f6a; }
-.search-bar button:disabled { background: #999; cursor: not-allowed; }
-.error-msg { color: #d32f2f; background: #fce4ec; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
-.result-card {
-  background: #fff; border-radius: 8px; padding: 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+.search-bar button:disabled { opacity: 0.6; cursor: default; }
+
+/* ── Shipment chips ── */
+
+.chips-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 18px;
 }
-.status-badge {
-  display: inline-block; padding: 6px 16px; border-radius: 20px;
-  font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 16px;
+
+.ship-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid #e3e8f0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: #2b2b40;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.status-badge.in_transit { background: #ff6f00; }
-.status-badge.out_for_delivery { background: #2196f3; }
-.status-badge.delivered { background: #4caf50; }
-.status-badge.delayed { background: #d32f2f; }
-.status-badge.created { background: #9e9e9e; }
-.status-badge.rescheduled { background: #ff9800; }
-.status-badge.redirected { background: #00bcd4; }
-.status-badge.cancelled { background: #795548; }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.detail { display: flex; flex-direction: column; }
-.label { font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: 1px; }
-.value { font-size: 16px; font-weight: 600; color: #333; margin-top: 4px; }
+
+.ship-chip:hover { border-color: #4d148c; }
+
+.ship-chip:focus-visible {
+  outline: 2px solid #ff6600;
+  outline-offset: 1px;
+}
+
+.ship-chip--active {
+  border-color: #4d148c;
+  box-shadow: 0 0 0 2px #4d148c22;
+  font-weight: 700;
+}
+
+.ship-chip__id { font-family: ui-monospace, "SF Mono", monospace; font-size: 0.78rem; }
+
+.ship-chip__dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.ship-chip__status { color: #6b6b85; font-size: 0.74rem; text-transform: capitalize; }
+
+/* Status colors (dot + panel chip share these) */
+.st--created, .st--in_transit, .st--rescheduled, .st--redirected { background: #dbe8ff; color: #1a53b0; }
+.st--out_for_delivery, .st--hold_requested { background: #fef3e0; color: #955d00; }
+.st--delivered { background: #e6f4ea; color: #1e7e34; }
+.st--delayed, .st--exception, .st--delivery_attempt_failed, .st--cancelled { background: #fdecea; color: #b3261e; }
+
+.ship-chip__dot.st--created, .ship-chip__dot.st--in_transit,
+.ship-chip__dot.st--rescheduled, .ship-chip__dot.st--redirected { background: #1a53b0; }
+.ship-chip__dot.st--out_for_delivery, .ship-chip__dot.st--hold_requested { background: #f9ab00; }
+.ship-chip__dot.st--delivered { background: #1e7e34; }
+.ship-chip__dot.st--delayed, .ship-chip__dot.st--exception,
+.ship-chip__dot.st--delivery_attempt_failed, .ship-chip__dot.st--cancelled { background: #ea4335; }
+
+.error-msg {
+  color: #b3261e;
+  background: #fdecea;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+/* ── Result layout ── */
+
+.result-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .result-grid { grid-template-columns: 1fr; }
+}
+
+.detail-panel {
+  background: #fff;
+  border: 1px solid #e3e8f0;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 2px 10px #0000000d;
+}
+
+.detail-panel__status {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.countdown {
+  margin: 16px 0 4px;
+}
+
+.countdown__value {
+  display: block;
+  font-size: 2.3rem;
+  font-weight: 800;
+  color: #1b1b2f;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown__label {
+  color: #6b6b85;
+  font-size: 0.8rem;
+}
+
+.risk-chip {
+  display: inline-block;
+  margin-top: 12px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.risk-chip--low { background: #e6f4ea; color: #1e7e34; }
+.risk-chip--moderate { background: #fef3e0; color: #955d00; }
+.risk-chip--high { background: #fdecea; color: #b3261e; }
+
+.detail-list {
+  margin: 18px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.detail-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #f0f0f6;
+  padding-bottom: 8px;
+}
+
+.detail-list dt {
+  color: #6b6b85;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.detail-list dd {
+  margin: 0;
+  font-weight: 600;
+  color: #2b2b40;
+  font-size: 0.88rem;
+  text-align: right;
+}
+
+.mono { font-family: ui-monospace, "SF Mono", monospace; }
+
+.detail-tip {
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  color: #6b6b85;
+  background: #f7f5fb;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.map-skeleton {
+  border: 1px dashed #d5d5e4;
+  border-radius: 16px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a8aa3;
+  font-size: 0.9rem;
+}
