@@ -8,6 +8,15 @@ export interface JourneyHub {
   risk: string;
 }
 
+export interface TraceCheckpoint {
+  hub: string;
+  label: string;
+  state: 'completed' | 'current' | 'upcoming';
+  time: string;
+  estimated: boolean;
+  risk: string;
+}
+
 export interface JourneyData {
   tracking_id: string;
   status: string;
@@ -25,6 +34,7 @@ export interface JourneyData {
     explanation?: string;
     route?: { hubs: JourneyHub[]; km: number; est_transit_hours: number };
   };
+  trace?: TraceCheckpoint[];
 }
 
 interface Point {
@@ -32,6 +42,7 @@ interface Point {
   y: number;
   name: string;
   risk: string;
+  frac: number;  // fraction of total path length at this hub
 }
 
 /**
@@ -97,10 +108,35 @@ export class JourneyMapComponent implements OnChanges, OnDestroy {
       y: 235 - ((h.lat - minLat) / latSpan) * 140,
       name: h.name,
       risk: h.risk || '',
+      frac: 0,
     }));
+    // Fraction of the total polyline length at each hub, for done-markers.
+    let total = 0;
+    const cumulative = [0];
+    for (let i = 1; i < this.points.length; i++) {
+      total += Math.hypot(this.points[i].x - this.points[i - 1].x,
+                          this.points[i].y - this.points[i - 1].y);
+      cumulative.push(total);
+    }
+    this.points.forEach((p, i) => p.frac = total ? cumulative[i] / total : 0);
     this.pathD = this.points
       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
       .join(' ');
+  }
+
+  hubDone(index: number): boolean {
+    const p = this.points[index];
+    return !!p && p.frac <= this.animProgress() + 0.001;
+  }
+
+  get trace(): TraceCheckpoint[] {
+    return this.journey?.trace || [];
+  }
+
+  traceIcon(t: TraceCheckpoint): string {
+    if (t.state === 'completed') return '✓';
+    if (t.state === 'current') return '🚚';
+    return '·';
   }
 
   /** Drive the truck from the start up to the live progress point. */

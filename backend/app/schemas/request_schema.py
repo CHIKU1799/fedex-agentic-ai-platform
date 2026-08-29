@@ -114,3 +114,10 @@ class NotificationResponse(BaseModel):
     created_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CommitmentRequest(BaseModel):
+    tracking_id: str
+    target_date: str  # YYYY-MM-DD
+    customer_id: Optional[str] = None  # defaults to the caller's own id
+    priority: Optional[str] = "normal"

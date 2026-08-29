@@ -44,14 +44,20 @@
         <path d="M 0 300 Q 200 268 400 296 T 800 292 L 800 340 L 0 340 Z"
               fill="#7cc466" opacity="0.9" />
 
-        <!-- Route: soft casing + marching dashes -->
+        <!-- Route: soft casing + marching dashes + solid traveled trace -->
         <path [attr.d]="pathD" class="road-casing" />
         <path [attr.d]="pathD" class="road-dashes" />
+        <path [attr.d]="pathD" class="road-traveled" pathLength="1"
+              [attr.stroke-dasharray]="animProgress() + ' 1'" />
 
         <!-- Hubs -->
         @for (p of points; track p.name; let i = $index) {
           <g [attr.transform]="'translate(' + p.x + ',' + p.y + ')'">
-            <circle r="7" class="hub" [class]="riskClass(p.risk)" />
+            <circle r="7" class="hub" [class]="riskClass(p.risk)"
+                    [class.hub--done]="hubDone(i)" />
+            @if (hubDone(i)) {
+              <text class="hub__check" text-anchor="middle" y="3.5">✓</text>
+            }
             @if (hubEmoji(i)) {
               <text class="hub__emoji" y="-14" text-anchor="middle">{{ hubEmoji(i) }}</text>
             }
@@ -78,6 +84,26 @@
           <span class="journey__reroute">⚠️ {{ explanation }}</span>
         }
       </div>
+
+      <!-- Tracing timeline: checkpoint trail with times -->
+      @if (trace.length) {
+        <div class="trace">
+          @for (t of trace; track t.hub; let last = $last) {
+            <div class="trace__row" [class]="'trace__row--' + t.state">
+              <div class="trace__rail">
+                <span class="trace__dot">{{ traceIcon(t) }}</span>
+                @if (!last) { <span class="trace__line"></span> }
+              </div>
+              <div class="trace__body">
+                <span class="trace__label">{{ t.label }}</span>
+                @if (t.time) {
+                  <span class="trace__time">{{ t.estimated ? 'est. ' : '' }}{{ t.time }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
     } @else {
       <div class="journey__unavailable">
         🗺️ {{ journey!.route.reason || 'Route map unavailable for this shipment.' }}

@@ -28,6 +28,11 @@ class Settings:
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "auto").lower()
 
+    # Cost-to-serve benchmark: industry-sourced cost of one failed first
+    # delivery attempt. The ONLY absolute cost the agent reasons with;
+    # everything else is modeled relative to it (avoided attempts x this).
+    FAILED_ATTEMPT_COST: float = float(os.getenv("FAILED_ATTEMPT_COST", "17.78"))
+
     # Shared secret that lets the scheduled fleet-watch cron invoke the
     # autonomous ops agent without a user JWT (Vercel sends it as a
     # Bearer token). Empty disables the cron path.

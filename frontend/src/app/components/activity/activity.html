@@ -1,0 +1,58 @@
+<div class="activity-container">
+  <div class="activity-head">
+    <div>
+      <h2>🤖 FedE Activity</h2>
+      <p class="hint">Everything your AI agent did for you, verified and on the record.</p>
+    </div>
+    @if (totalCostAvoided() > 0) {
+      <div class="cost-tile">
+        <span class="cost-tile__value">${{ totalCostAvoided() | number:'1.2-2' }}</span>
+        <span class="cost-tile__label">estimated cost avoided</span>
+      </div>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="error-msg">{{ error() }}</div>
+  }
+
+  @if (commitments().length) {
+    <h3 class="section-title">🎯 Delivery commitments FedE is watching</h3>
+    <div class="commitments">
+      @for (c of commitments(); track c.commitment_id) {
+        <div class="commitment">
+          <div class="commitment__top">
+            <span class="commitment__id">{{ c.tracking_id }}</span>
+            <span [class]="commitmentBadge(c.status)">{{ c.status.replace('_', ' ') }}</span>
+          </div>
+          <div class="commitment__row">Arrive by <b>{{ c.target_date }}</b> ({{ c.commitment_id }})</div>
+          @if (c.risk_reason) {
+            <div class="commitment__risk">⚠️ {{ c.risk_reason }}</div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <h3 class="section-title">Recent agent actions</h3>
+  @if (!events().length && !loading() && !error()) {
+    <p class="empty">Nothing yet. Ask FedE for something, or set a delivery goal like
+      "I need FX100001 before Friday".</p>
+  }
+  <div class="feed">
+    @for (e of events(); track e.at) {
+      <div class="feed__row" [class.feed__row--fail]="!e.ok">
+        <span class="feed__icon">{{ icon(e) }}</span>
+        <div class="feed__body">
+          <span class="feed__note">{{ e.note }}</span>
+          <span class="feed__meta">
+            {{ when(e.at) }}
+            @if (e.cost_avoided > 0) {
+              · saved ~${{ e.cost_avoided | number:'1.2-2' }}
+            }
+          </span>
+        </div>
+      </div>
+    }
+  </div>
+</div>

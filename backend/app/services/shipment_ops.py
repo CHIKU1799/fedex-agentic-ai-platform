@@ -24,6 +24,9 @@ from app.db.crud import (
     get_preferences,
     create_support_case,
     list_support_cases,
+    create_commitment,
+    list_commitments,
+    list_agent_events,
 )
 from app.services import facility_service, route_service, weather_service
 
@@ -374,4 +377,190 @@ def journey_for(db: Session, user: User, tracking_id: str) -> dict:
         "days_remaining": None if hours_remaining is None else round(hours_remaining / 24, 1),
         "progress": round(progress, 3),
         "route": route,
+        "trace": _journey_trace(shipment, route, progress),
+    }
+
+
+def _journey_trace(shipment, route: dict, progress: float) -> list:
+    """
+    Checkpoint trail for the tracing timeline: one entry per route hub with
+    a completed/current/upcoming state and an interpolated timestamp
+    (real scans would slot straight into this shape). Distances along the
+    route position each checkpoint in time between pickup and the ETA.
+    """
+    import math
+    from datetime import datetime, timedelta, timezone
+
+    if not route.get("available"):
+        return []
+    hub_list = route.get("route", {}).get("hubs", [])
+    n = len(hub_list)
+    if n == 0:
+        return []
+
+    # Cumulative distance fraction of each hub along the polyline.
+    def _dist(a, b):
+        return math.hypot(a["lat"] - b["lat"], a["lon"] - b["lon"])
+
+    fractions = [0.0]
+    total = sum(_dist(hub_list[i], hub_list[i + 1]) for i in range(n - 1))
+    acc = 0.0
+    for i in range(n - 1):
+        acc += _dist(hub_list[i], hub_list[i + 1])
+        fractions.append(acc / total if total else 1.0)
+
+    # Interpolate checkpoint times between pickup and the ETA evening.
+    end = None
+    try:
+        end = datetime.strptime(shipment.eta.strip()[:10], "%Y-%m-%d").replace(
+            hour=18, tzinfo=timezone.utc)
+    except (ValueError, AttributeError):
+        pass
+    start = shipment.created_at
+    if start is not None and start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end is not None and (start is None or start >= end):
+        start = end - timedelta(days=3)
+
+    delivered = shipment.status == "delivered"
+    if delivered:
+        progress = 1.0
+    current_index = 0
+    for i, f in enumerate(fractions):
+        if f <= progress + 1e-6:
+            current_index = i
+
+    trace = []
+    for i, hub in enumerate(hub_list):
+        name = hub["name"]
+        if i == 0:
+            label = f"Picked up in {name}"
+        elif i == n - 1:
+            label = f"Delivered in {name}" if delivered else f"Delivery in {name}"
+        else:
+            label = f"{name} hub"
+        if delivered or i < current_index:
+            state = "completed"
+        elif i == current_index:
+            state = "current"
+        else:
+            state = "upcoming"
+        time_str = ""
+        if start is not None and end is not None:
+            moment = start + (end - start) * fractions[i]
+            time_str = moment.strftime("%d %b, %H:%M")
+        trace.append({
+            "hub": name,
+            "label": label,
+            "state": state,
+            "time": time_str,
+            "estimated": state == "upcoming",
+            "risk": hub.get("risk", ""),
+        })
+    return trace
+
+
+# ── Delivery commitments (goal-driven autonomy) ──
+
+def set_delivery_commitment(db: Session, user: User, customer_id: str, tracking_id: str,
+                            target_date: str, priority: str = "normal") -> dict:
+    """
+    Turn an outcome ("I need this by Friday") into something the agent is
+    responsible for. The monitoring loop re-evaluates it every sweep and
+    intervenes when the goal is at risk. One active commitment per
+    shipment: restating the deadline updates it instead of duplicating.
+    """
+    from datetime import datetime as _dt
+
+    authorize_shipment_access(user, customer_id)
+    shipment = _shipment_or_404(db, tracking_id)
+    if shipment.customer_id != customer_id:
+        raise HTTPException(status_code=403, detail="That shipment does not belong to this customer.")
+    if shipment.status in ("delivered", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"Cannot commit a {shipment.status} shipment")
+    try:
+        _dt.strptime((target_date or "").strip()[:10], "%Y-%m-%d")
+        target_date = target_date.strip()[:10]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="target_date must be YYYY-MM-DD")
+    if priority not in ("low", "normal", "high"):
+        priority = "normal"
+
+    existing = [c for c in list_commitments(db, customer_id, active_only=True)
+                if c.tracking_id == tracking_id]
+    if existing:
+        commitment = existing[0]
+        commitment.target_date = target_date
+        commitment.priority = priority
+        commitment.status = "ACTIVE"
+        commitment.risk_reason = ""
+        db.commit()
+        db.refresh(commitment)
+    else:
+        commitment = create_commitment(db, tracking_id, customer_id, target_date, priority)
+    create_notification(
+        db, customer_id, tracking_id,
+        f"Commitment {commitment.id}: FedE is now watching {tracking_id} to arrive by "
+        f"{target_date}. You'll hear from us the moment that goal is at risk.",
+        "commitment",
+    )
+    at_risk_now = bool(shipment.eta and shipment.eta > target_date)
+    return {
+        "commitment_id": commitment.id,
+        "tracking_id": tracking_id,
+        "customer_id": customer_id,
+        "goal_type": commitment.goal_type,
+        "target_date": target_date,
+        "priority": commitment.priority,
+        "status": commitment.status,
+        "current_eta": shipment.eta,
+        "eta_meets_target": not at_risk_now,
+        "note": ("Current ETA already misses the target; the agent should propose a fix now."
+                 if at_risk_now else "Current ETA meets the target. Monitoring is active."),
+    }
+
+
+def commitments_for(db: Session, user: User, customer_id: str = "") -> dict:
+    """Customers see their own commitments; agents may list everyone's."""
+    if customer_id:
+        authorize_shipment_access(user, customer_id)
+    elif user.role != "agent":
+        raise HTTPException(status_code=403, detail="Only FedEx agents can list all commitments.")
+    rows = list_commitments(db, customer_id)
+    return {
+        "customer_id": customer_id or "all",
+        "commitments": [
+            {
+                "commitment_id": c.id,
+                "tracking_id": c.tracking_id,
+                "customer_id": c.customer_id,
+                "goal_type": c.goal_type,
+                "target_date": c.target_date,
+                "status": c.status,
+                "priority": c.priority,
+                "risk_reason": c.risk_reason,
+            }
+            for c in rows
+        ],
+    }
+
+
+def activity_for(db: Session, user: User, customer_id: str) -> dict:
+    """Customer-facing agent activity feed: what FedE did on their behalf."""
+    authorize_shipment_access(user, customer_id)
+    events = list_agent_events(db, limit=40, customer_id=customer_id)
+    return {
+        "customer_id": customer_id,
+        "events": [
+            {
+                "tool": e.tool,
+                "ok": e.ok == "true",
+                "note": e.note,
+                "tracking_id": e.tracking_id,
+                "cost_avoided": e.cost_avoided or 0.0,
+                "at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in events
+        ],
+        "total_cost_avoided": round(sum(e.cost_avoided or 0.0 for e in events), 2),
     }

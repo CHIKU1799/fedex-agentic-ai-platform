@@ -79,6 +79,9 @@
                     {{ msg.weather.temperature_min_c }}°C to {{ msg.weather.temperature_max_c }}°C
                   </div>
                 }
+                @if (msg.weather.note) {
+                  <div class="weather-card__note">ℹ️ {{ msg.weather.note }}</div>
+                }
                 @if (msg.notificationCreated) {
                   <div class="weather-card__note">🔔 Proactive weather alert sent to the customer</div>
                 }
@@ -126,6 +129,9 @@
             </div>
           }
 
+          @if (msg.costAvoided) {
+            <span class="cost-note">💰 Estimated cost avoided: ${{ msg.costAvoided | number:'1.2-2' }}</span>
+          }
           @if (msg.tokens) {
             <span class="token-note">⚡ {{ msg.tokens }} tokens</span>
           }

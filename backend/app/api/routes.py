@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.schemas.request_schema import (
     QueryRequest, ShipmentCreate, ShipmentResponse,
     RescheduleRequest, RedirectRequest, CancelRequest, HoldRequest, TokenResponse,
+    CommitmentRequest,
 )
 from app.agents.planner_agent import handle_user_query
 from app.agents import watch_agent
@@ -170,6 +171,64 @@ def fleet_watch(request: Request, db: Session = Depends(get_db)):
         if payload.get("role") != "agent":
             raise HTTPException(status_code=403, detail="Only FedEx agents can run the fleet watch.")
     return watch_agent.run_fleet_watch(db)
+
+
+# ── Agentic analytics (ops console, agent-only) ──
+
+@router.get("/analytics/agent")
+def agentic_analytics(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """What the AI actually did: action volumes, success rate, provider mix,
+    commitments health, and total estimated cost avoided."""
+    if user.role != "agent":
+        raise HTTPException(status_code=403, detail="Only FedEx agents can view agent analytics.")
+    from app.services.analytics_service import agent_analytics
+    return agent_analytics(db)
+
+
+# ── Customer activity feed (what FedE did for them) ──
+
+@router.get("/activity/{customer_id}")
+def customer_activity(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.activity_for(db, user, customer_id)
+
+
+# ── Delivery commitments (goal-driven autonomy) ──
+
+@router.post("/commitments")
+def create_delivery_commitment(
+    payload: CommitmentRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    customer_id = payload.customer_id or user.customer_id or ""
+    result = shipment_ops.set_delivery_commitment(
+        db, user, customer_id, payload.tracking_id, payload.target_date,
+        payload.priority or "normal")
+    return {"message": "Commitment created", **result}
+
+
+@router.get("/commitments")
+def all_commitments(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.commitments_for(db, user, "")
+
+
+@router.get("/commitments/{customer_id}")
+def customer_commitments(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    return shipment_ops.commitments_for(db, user, customer_id)
 
 
 # ── Customer memory (agent-written preferences) ──

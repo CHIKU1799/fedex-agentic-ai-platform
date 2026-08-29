@@ -29,6 +29,16 @@
   <button [class.active]="activeTab() === 'notifications'" (click)="setTab('notifications')">
     Notifications
   </button>
+  @if (isCustomer()) {
+    <button [class.active]="activeTab() === 'activity'" (click)="setTab('activity')">
+      🤖 Activity
+    </button>
+  }
+  @if (isAgent()) {
+    <button [class.active]="activeTab() === 'analytics'" (click)="setTab('analytics')">
+      📊 Analytics
+    </button>
+  }
 </nav>
 
 <main class="main-content">
@@ -43,6 +53,12 @@
   }
   @if (activeTab() === 'notifications') {
     <app-notifications />
+  }
+  @if (activeTab() === 'activity') {
+    <app-activity />
+  }
+  @if (activeTab() === 'analytics') {
+    <app-analytics />
   }
 </main>
 

@@ -382,3 +382,137 @@ def test_fleet_watch_handles_failed_delivery_attempt(client, agent_auth, stub_fl
     report = client.post("/agent/fleet-watch", headers=agent_auth).json()
     flagged = {f["tracking_id"]: f for f in report["flagged"]}
     assert "delivery_attempt_failed" in flagged["FX100006"]["flags"]
+
+
+# ── Autonomy tiers, verification, commitments, analytics ──
+
+def _weather_low(monkeypatch):
+    monkeypatch.setattr(weather_service, "destination_weather",
+                        lambda destination, eta: {"available": True, "risk": "low",
+                                                  "eta_within_forecast": True})
+
+
+def test_tier3_cancel_blocked_without_confirmation(client, monkeypatch, cust001_auth):
+    fake = FakeAnthropic([
+        msg(tool_calls=[tool_call("t1", "cancel_shipment",
+                                  json.dumps({"tracking_id": "FX100001"}))]),
+        msg("Just to confirm: do you really want to cancel FX100001?"),
+    ])
+    monkeypatch.setattr(planner, "get_llm_client", lambda: fake)
+    resp = client.post("/ask", json={"query": "cancel FX100001"}, headers=cust001_auth)
+    body = resp.json()["response"]
+    assert body["actions_taken"][0]["ok"] is False
+    # The shipment was NOT cancelled: policy enforced in the tool layer.
+    assert client.get("/track/FX100001").json()["status"] == "in_transit"
+
+
+def test_tier3_cancel_with_confirmation_executes_and_verifies(client, monkeypatch, cust001_auth):
+    fake = FakeAnthropic([
+        msg(tool_calls=[tool_call("t1", "cancel_shipment",
+                                  json.dumps({"tracking_id": "FX100001", "confirmed": True}))]),
+        msg("Done, cancelled."),
+    ])
+    monkeypatch.setattr(planner, "get_llm_client", lambda: fake)
+    resp = client.post("/ask", json={"query": "yes, cancel FX100001"}, headers=cust001_auth)
+    body = resp.json()["response"]
+    assert body["actions_taken"][0]["ok"] is True
+    assert body["data"]["verified"] is True
+    assert client.get("/track/FX100001").json()["status"] == "cancelled"
+
+
+def test_mutations_are_read_back_verified(client, cust001_auth, monkeypatch):
+    from app.agents.agent_tools import execute_tool
+    from app.core.security import User as _U
+    db = SessionLocal()
+    outcome = execute_tool("reschedule_delivery",
+                           {"tracking_id": "FX100001", "new_date": "2026-06-08"},
+                           db, _U(username="cust001", role="customer", customer_id="CUST001"))
+    db.close()
+    assert outcome["ok"] is True
+    assert outcome["result"]["verified"] is True
+
+
+def test_offline_deadline_parsing():
+    from datetime import date, timedelta
+    assert planner._extract_deadline("need it by 2026-09-04") == "2026-09-04"
+    assert planner._extract_deadline("must arrive by tomorrow") == (
+        date.today() + timedelta(days=1)).isoformat()
+    friday = planner._extract_deadline("deliver before friday")
+    assert friday and friday > date.today().isoformat()
+
+
+def test_commitment_lifecycle_via_monitoring(client, monkeypatch, cust001_auth, agent_auth):
+    _weather_low(monkeypatch)
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+
+    # Offline router understands the outcome and creates a commitment.
+    resp = client.post("/ask", json={"query": "I need FX100001 delivered before 2026-09-04"},
+                       headers=cust001_auth)
+    data = resp.json()["response"]["data"]
+    commitment_id = data["commitment_id"]
+    assert data["status"] == "ACTIVE" and data["eta_meets_target"] is True
+
+    # ETA slips past the deadline; the monitoring loop flags the goal.
+    db = SessionLocal()
+    db.query(Shipment).filter(Shipment.tracking_id == "FX100001").update({"eta": "2026-09-09"})
+    db.commit(); db.close()
+    report = client.post("/agent/fleet-watch", headers=agent_auth).json()
+    assert report["commitments"]["at_risk"] == 1
+    assert report["commitments"]["details"][0]["commitment_id"] == commitment_id
+    got = client.get("/commitments/CUST001", headers=cust001_auth).json()["commitments"][0]
+    assert got["status"] == "AT_RISK" and "deadline" in got["risk_reason"]
+
+    # ETA recovers; the loop reports it back on track (risk changed -> update).
+    db = SessionLocal()
+    db.query(Shipment).filter(Shipment.tracking_id == "FX100001").update({"eta": "2026-09-03"})
+    db.commit(); db.close()
+    report2 = client.post("/agent/fleet-watch", headers=agent_auth).json()
+    assert report2["commitments"]["active"] == 1
+    got = client.get("/commitments/CUST001", headers=cust001_auth).json()["commitments"][0]
+    assert got["status"] == "ACTIVE"
+    notes = client.get("/notifications/CUST001", headers=cust001_auth).json()["notifications"]
+    assert any("back on track" in n["message"] for n in notes)
+
+
+def test_cost_attribution_and_activity_feed(client, monkeypatch, cust001_auth):
+    db = SessionLocal()
+    db.add(Shipment(tracking_id="FX100006", status="delivery_attempt_failed",
+                    location="Brooklyn, NY", eta="2026-06-03", customer_id="CUST001",
+                    origin="Chicago, IL", destination="New York, NY"))
+    db.commit(); db.close()
+
+    fake = FakeAnthropic([
+        msg(tool_calls=[tool_call("t1", "hold_at_location",
+                                  json.dumps({"tracking_id": "FX100006"}))]),
+        msg("Held for pickup — you skip another missed attempt."),
+    ])
+    monkeypatch.setattr(planner, "get_llm_client", lambda: fake)
+    resp = client.post("/ask", json={"query": "hold FX100006 for pickup"}, headers=cust001_auth)
+    body = resp.json()["response"]
+    assert body["data"]["estimated_cost_avoided_usd"] == 17.78
+    assert body["data"]["verified"] is True
+
+    feed = client.get("/activity/CUST001", headers=cust001_auth).json()
+    assert feed["total_cost_avoided"] >= 17.78
+    assert any(e["tool"] == "hold_at_location" and e["ok"] for e in feed["events"])
+
+
+def test_agent_analytics_endpoint_role_scoped(client, monkeypatch, cust001_auth, agent_auth):
+    monkeypatch.setattr(planner, "get_llm_client", lambda: None)
+    client.post("/ask", json={"query": "hold FX100001 for pickup"}, headers=cust001_auth)
+
+    assert client.get("/analytics/agent", headers=cust001_auth).status_code == 403
+    analytics = client.get("/analytics/agent", headers=agent_auth).json()
+    assert analytics["totals"]["agent_actions"] >= 1
+    assert any(t["tool"] == "hold_at_location" for t in analytics["tool_usage"])
+    assert "commitments" in analytics
+
+
+def test_journey_trace_checkpoints(client, monkeypatch):
+    monkeypatch.setattr(weather_service, "destination_weather",
+                        lambda destination, eta: {"available": True, "risk": "low"})
+    trace = client.get("/journey/FX100001").json()["trace"]
+    assert trace[0]["label"].startswith("Picked up in")
+    assert trace[-1]["label"].startswith("Delivery in")
+    states = {t["state"] for t in trace}
+    assert "current" in states and "upcoming" in states

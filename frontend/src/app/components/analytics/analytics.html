@@ -1,0 +1,137 @@
+<div class="analytics-container">
+  <div class="analytics-head">
+    <div>
+      <h2>📊 Agentic Analytics</h2>
+      <p class="hint">What the AI actually did: audited, verified, and costed. Customer outcomes rank above cost savings by policy.</p>
+    </div>
+    <button class="sweep-btn" (click)="runSweep()" [disabled]="sweeping()">
+      {{ sweeping() ? 'Sweeping…' : '🛰️ Run fleet watch now' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="error-msg">{{ error() }}</div>
+  }
+
+  @if (sweep(); as s) {
+    <div class="sweep-result">
+      <b>Sweep done:</b> {{ s.scanned }} shipments scanned, {{ s.flagged.length }} flagged,
+      {{ s.notifications_created }} customers notified.
+      @if (s.commitments) {
+        Commitments: {{ s.commitments.active }} on track, {{ s.commitments.at_risk }} at risk,
+        {{ s.commitments.met }} met.
+      }
+    </div>
+  }
+
+  @if (data(); as d) {
+    <!-- Stat tiles -->
+    <div class="tiles">
+      <div class="tile">
+        <span class="tile__value">{{ d.totals.agent_actions }}</span>
+        <span class="tile__label">agent actions</span>
+      </div>
+      <div class="tile">
+        <span class="tile__value">{{ pct(d.totals.success_rate) }}</span>
+        <span class="tile__label">success rate</span>
+      </div>
+      <div class="tile">
+        <span class="tile__value">${{ d.totals.cost_avoided_usd | number:'1.2-2' }}</span>
+        <span class="tile__label">est. cost avoided</span>
+      </div>
+      <div class="tile">
+        <span class="tile__value">{{ d.commitments.total }}</span>
+        <span class="tile__label">commitments</span>
+      </div>
+      <div class="tile">
+        <span class="tile__value">{{ d.totals.cases_open }}</span>
+        <span class="tile__label">open cases</span>
+      </div>
+      <div class="tile">
+        <span class="tile__value">{{ d.totals.notifications_sent }}</span>
+        <span class="tile__label">notifications</span>
+      </div>
+    </div>
+
+    <!-- At-risk commitments -->
+    @if (d.commitments.at_risk.length) {
+      <h3 class="section-title">⚠️ Commitments at risk</h3>
+      <div class="risk-list">
+        @for (c of d.commitments.at_risk; track c.commitment_id) {
+          <div class="risk-item">
+            <span class="risk-item__badge">AT RISK</span>
+            <div>
+              <b>{{ c.tracking_id }}</b> for {{ c.customer_id }} · target {{ c.target_date }}
+              <div class="risk-item__reason">{{ c.risk_reason }}</div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Tool usage bar list (single hue: magnitude) -->
+    <h3 class="section-title">Tool usage</h3>
+    @if (!d.tool_usage.length) {
+      <p class="empty">No agent actions recorded yet this session.</p>
+    }
+    <div class="bars">
+      @for (t of d.tool_usage; track t.tool) {
+        <div class="bar-row">
+          <span class="bar-row__name">{{ t.tool }}</span>
+          <div class="bar-row__track">
+            <div class="bar-row__fill" [style.width]="barWidth(t.count)"></div>
+          </div>
+          <span class="bar-row__count">{{ t.count }}<span class="bar-row__ok"> ({{ t.ok }} ok)</span></span>
+        </div>
+      }
+    </div>
+
+    <!-- Provider mix + shipment states -->
+    <div class="split">
+      <div>
+        <h3 class="section-title">Brain used</h3>
+        <div class="chips">
+          @for (p of objectEntries(d.provider_usage); track p.key) {
+            <span class="chip">{{ p.key }}: <b>{{ p.value }}</b></span>
+          }
+        </div>
+      </div>
+      <div>
+        <h3 class="section-title">Fleet by status</h3>
+        <div class="chips">
+          @for (s of objectEntries(d.shipments_by_status); track s.key) {
+            <span class="chip">{{ s.key }}: <b>{{ s.value }}</b></span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit feed -->
+    <h3 class="section-title">Recent agent actions (audit log)</h3>
+    <table class="audit">
+      <thead>
+        <tr><th>Time</th><th>Action</th><th>Result</th><th>Cost avoided</th></tr>
+      </thead>
+      <tbody>
+        @for (a of d.recent_actions; track a.at) {
+          <tr>
+            <td class="audit__time">{{ when(a.at) }}</td>
+            <td>{{ a.note || a.tool }}</td>
+            <td>
+              <span class="result" [class.result--fail]="!a.ok">{{ a.ok ? '✓ ok' : '✕ failed' }}</span>
+            </td>
+            <td class="audit__cost">{{ a.cost_avoided > 0 ? ('$' + (a.cost_avoided | number:'1.2-2')) : '' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <!-- Governance: autonomy tiers -->
+    <h3 class="section-title">Autonomy policy (enforced in the tool layer)</h3>
+    <div class="policy">
+      <div class="policy__row"><span class="policy__tier policy__tier--1">Tier 1</span> Read-only checks (track, weather, route, dates): act silently.</div>
+      <div class="policy__row"><span class="policy__tier policy__tier--2">Tier 2</span> Reversible changes (reschedule, hold, memory, cases, commitments): act, then inform.</div>
+      <div class="policy__row"><span class="policy__tier policy__tier--3">Tier 3</span> High impact (redirect, cancel): the tool refuses until the customer explicitly confirms.</div>
+    </div>
+  }
+</div>

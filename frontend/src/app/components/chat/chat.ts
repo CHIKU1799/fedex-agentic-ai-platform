@@ -26,6 +26,8 @@ interface WeatherReport {
   conditions?: string;
   temperature_max_c?: number;
   temperature_min_c?: number;
+  eta_within_forecast?: boolean;
+  note?: string | null;
 }
 
 interface OutlookDay {
@@ -51,14 +53,15 @@ interface ChatMessage {
   notificationCreated?: boolean;
   outlook?: DeliveryOutlook;
   journey?: JourneyData;
+  costAvoided?: number;
   tokens?: number;
 }
 
 const SUGGESTIONS = [
   'Where is my package FX100001?',
   'Show me the route for FX100001',
+  'I need FX100001 delivered before friday',
   'Will weather delay FX100001?',
-  'Suggest better delivery dates for FX100004',
   'Hold FX100006 for pickup',
   'My package arrived damaged, I need help',
 ];
@@ -78,6 +81,8 @@ const TOOL_LABELS: Record<string, string> = {
   save_customer_preference: 'Remembered your preference',
   get_customer_preferences: 'Recalled your preferences',
   create_support_case: 'Opened a support case',
+  set_delivery_commitment: 'Took on your delivery goal',
+  get_delivery_commitments: 'Checked your delivery goals',
 };
 
 @Component({
@@ -157,8 +162,13 @@ export class ChatComponent {
       msg.text = data.recommended_date
         ? `The earliest low-risk delivery date for ${data.tracking_id} is ${data.recommended_date}.`
         : `I could not find a low-risk date in the next week for ${data.tracking_id}.`;
-    } else if (data.tracking_id) {
+    } else if (data.commitment_id) {
+      msg.text = data.message
+        || `Commitment ${data.commitment_id}: watching ${data.tracking_id} to arrive by ${data.target_date}.`;
+    } else if (data.tracking_id && data.location) {
       msg.text = `Shipment ${data.tracking_id} is "${data.status}" at ${data.location}. ETA ${data.eta}.`;
+    } else if (data.message) {
+      msg.text = data.message;
     } else if (data.response) {
       msg.text = data.response;
     } else if (data.message) {
@@ -198,13 +208,19 @@ export class ChatComponent {
       }
     }
 
-    // Inline tracking card / shipment list. Weather, outlook and journey
-    // replies carry a tracking_id too, but render their own richer cards.
-    if (data.tracking_id && !msg.weather && !msg.outlook && !msg.journey) {
+    // Inline tracking card / shipment list. Weather, outlook, journey and
+    // commitment replies carry a tracking_id too, but render differently.
+    if (data.tracking_id && data.location && !msg.weather && !msg.outlook
+        && !msg.journey && !data.commitment_id) {
       msg.card = data as TrackingCard;
     }
     if (Array.isArray(data.shipments)) {
       msg.shipments = data.shipments as TrackingCard[];
+    }
+
+    // Cost avoided (customer-first byproduct, shown transparently).
+    if (data.estimated_cost_avoided_usd > 0) {
+      msg.costAvoided = data.estimated_cost_avoided_usd;
     }
 
     // Token usage (agentic only).

@@ -64,7 +64,24 @@ _SYSTEM_PROMPT = (
     "on a chosen date, or hold for pickup. Use plan_optimal_route when the "
     "user asks how their package will travel, why it goes a certain way, or "
     "whether weather will reroute it — it computes the shortest hub path "
-    "and a weather-adjusted alternative you can explain."
+    "and a weather-adjusted alternative you can explain. "
+    "GOALS: when the customer states an OUTCOME with a deadline ('I need "
+    "this before Friday'), call set_delivery_commitment — FedE then owns "
+    "that goal and its monitoring loop watches ETA, status and weather "
+    "against the target date, intervening the moment it is at risk. "
+    "COST RULES, customer-first: customer satisfaction ALWAYS outranks "
+    "saving the company money. (1) a customer commitment or preference "
+    "always beats cost savings; never pick a cheaper option that misses "
+    "their deadline or degrades their experience. (2) recommend "
+    "cost-saving options like hold_at_location only when the customer "
+    "clearly benefits too (gets it sooner, avoids another missed attempt); "
+    "if an option only helps FedEx, do not push it. Cost avoided is a "
+    "byproduct to report, never the reason to choose. (3) a "
+    "recommendation is not permission: high-impact actions (redirect, "
+    "cancel) are autonomy tier 3 and the tools will refuse until you ask "
+    "the customer and retry with confirmed=true. Tools verify mutations by "
+    "re-reading state; if a tool reports verification failed, tell the "
+    "customer honestly that the change was not applied."
 )
 
 
@@ -144,7 +161,7 @@ def _run_agentic(provider, query: str, db: Session, user: User, history: list) -
         tool_results = []
         for call in turn.tool_calls:
             logger.info(f"Agent tool call: {call.name}({call.args}) as {user.role}")
-            outcome = execute_tool(call.name, call.args, db, user)
+            outcome = execute_tool(call.name, call.args, db, user, provider=provider.name)
             actions_taken.append({"tool": call.name, "arguments": call.args, "ok": outcome.get("ok", False)})
             if outcome.get("ok") and "result" in outcome:
                 structured_result = outcome["result"]
@@ -178,8 +195,35 @@ def _extract_tracking_id(query: str) -> str:
     return m.group(0) if m else ""
 
 
+_WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def _extract_deadline(query: str) -> str:
+    """Deterministic deadline parsing for the offline router: an ISO date,
+    'tomorrow', or the next occurrence of a weekday name."""
+    from datetime import date, timedelta
+
+    q = query.lower()
+    m = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", q)
+    if m:
+        return m.group(1)
+    if "tomorrow" in q:
+        return (date.today() + timedelta(days=1)).isoformat()
+    for i, day in enumerate(_WEEKDAYS):
+        if day in q:
+            ahead = (i - date.today().weekday()) % 7 or 7
+            return (date.today() + timedelta(days=ahead)).isoformat()
+    return ""
+
+
 def _detect_intent(query: str) -> str:
     q = query.lower()
+    # Outcome + deadline ("I need FX100001 before Friday") beats every
+    # keyword bucket: it becomes a monitored commitment.
+    if (re.search(r"\b(by|before|until)\b", q)
+            and re.search(r"\b(need|deliver|delivered|arrive|arrives|must|latest)\b", q)
+            and _extract_deadline(q)):
+        return "commitment"
     buckets = {
         "escalate": ["complain", "complaint", "damaged", "broken", "missing item", "lost package",
                      "refund", "escalate", "human agent", "speak to a person", "talk to a person",
@@ -253,6 +297,34 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
                 continue
         return {"intent": "weather", "data": {"message": f"No shipment found for {tracking_id}"}}
 
+    if intent == "commitment":
+        tracking_id = _extract_tracking_id(query)
+        deadline = _extract_deadline(query)
+        if not tracking_id:
+            return {"intent": "commitment",
+                    "data": {"message": "Tell me the tracking ID (e.g. FX100001) and I'll commit to that deadline."}}
+        if not tracking_id.upper().startswith("FX"):
+            tracking_id = f"FX{tracking_id}"
+        if not user.customer_id:
+            return {"intent": "commitment",
+                    "data": {"message": "Please log in so I can take on that delivery commitment for you."}}
+        try:
+            result = shipment_ops.set_delivery_commitment(
+                db, user, user.customer_id, tracking_id, deadline)
+            result["message"] = (
+                f"Commitment {result['commitment_id']} created: I'm now watching {tracking_id} "
+                f"to arrive by {deadline}. {result['note']}"
+            )
+            from app.db.crud import record_agent_event
+            record_agent_event(db, user.username, user.role, "set_delivery_commitment", True,
+                               "offline", tracking_id, user.customer_id,
+                               f"Took on a delivery commitment ({tracking_id} by {deadline})")
+            return {"intent": "commitment", "data": result}
+        except Exception:
+            return {"intent": "commitment",
+                    "data": {"message": f"Could not create a commitment for {tracking_id}. "
+                                        "Check the tracking ID, or that the shipment is still active."}}
+
     if intent == "hold":
         # Hold needs no structured arguments beyond the tracking ID, so the
         # offline router can execute it for real, like track/weather do.
@@ -264,12 +336,14 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
         if not tracking_id.upper().startswith("FX"):
             candidates.append(f"FX{tracking_id}")
         for candidate in candidates:
-            try:
-                result = shipment_ops.hold_at_location(db, user, candidate)
+            # Through the governance pipeline: tier check, verification,
+            # audit log — identical to the agentic path.
+            outcome = execute_tool("hold_at_location", {"tracking_id": candidate},
+                                   db, user, provider="offline")
+            if outcome.get("ok"):
+                result = outcome["result"]
                 result["message"] = f"Your package will be held for pickup at {result['pickup_location']}."
                 return {"intent": "hold", "data": result}
-            except Exception:
-                continue
         return {"intent": "hold",
                 "data": {"message": f"Could not arrange a hold for {tracking_id}. "
                                     "Please log in, or check the tracking ID."}}
@@ -281,16 +355,18 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
             tracking_id = _extract_tracking_id(query)
             if tracking_id and not tracking_id.upper().startswith("FX"):
                 tracking_id = f"FX{tracking_id}"
-            try:
-                result = shipment_ops.open_support_case(
-                    db, user, user.customer_id, f"Customer reported: {query}", tracking_id or "")
+            outcome = execute_tool(
+                "create_support_case",
+                {"customer_id": user.customer_id, "summary": f"Customer reported: {query}",
+                 "tracking_id": tracking_id or ""},
+                db, user, provider="offline")
+            if outcome.get("ok"):
+                result = outcome["result"]
                 result["message"] = (
                     f"I've opened support case {result['case_id']} for you. "
                     "A FedEx representative will follow up shortly."
                 )
                 return {"intent": "escalate", "data": result}
-            except Exception:
-                pass
         return {"intent": "escalate",
                 "data": {"message": "Please log in so I can open a support case for you, "
                                     "or call FedEx customer care."}}

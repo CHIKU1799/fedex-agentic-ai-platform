@@ -143,3 +143,14 @@
 }
 .chat-input button:hover:not(:disabled) { background: #e55a00; }
 .chat-input button:disabled { background: #ccc; cursor: not-allowed; }
+
+.cost-note {
+  display: inline-block;
+  margin-top: 6px;
+  background: #e6f4ea;
+  color: #1e7e34;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}

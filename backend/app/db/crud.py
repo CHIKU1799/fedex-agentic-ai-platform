@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from app.db.models import Shipment, Notification, CustomerPreference, SupportCase
+from app.db.models import (
+    Shipment, Notification, CustomerPreference, SupportCase, AgentEvent, DeliveryCommitment,
+)
 
 
 # ── Shipment CRUD ──
@@ -159,3 +161,70 @@ def notify_once(db: Session, customer_id: str, tracking_id: str, message: str,
         if n.is_read != "true" or (created is not None and created >= cutoff):
             return None
     return create_notification(db, customer_id, tracking_id, message, notification_type)
+
+
+# ── Agent audit events (agentic analytics + activity feed) ──
+
+def record_agent_event(db: Session, username: str, role: str, tool: str,
+                       ok: bool, provider: str = "", tracking_id: str = "",
+                       customer_id: str = "", note: str = "",
+                       cost_avoided: float = 0.0):
+    """Best-effort audit write: analytics must never break the action."""
+    try:
+        event = AgentEvent(
+            id=str(uuid.uuid4()), username=username, role=role,
+            tool=tool, ok="true" if ok else "false", provider=provider,
+            tracking_id=tracking_id or "", customer_id=customer_id or "",
+            note=(note or "")[:500], cost_avoided=cost_avoided or 0.0,
+        )
+        db.add(event)
+        db.commit()
+        return event
+    except Exception:
+        db.rollback()
+        return None
+
+
+def list_agent_events(db: Session, limit: int = 500, customer_id: str = ""):
+    query = db.query(AgentEvent)
+    if customer_id:
+        query = query.filter(AgentEvent.customer_id == customer_id)
+    return query.order_by(AgentEvent.created_at.desc()).limit(limit).all()
+
+
+# ── Delivery commitments (goal-driven autonomy) ──
+
+def create_commitment(db: Session, tracking_id: str, customer_id: str,
+                      target_date: str, priority: str = "normal"):
+    commitment = DeliveryCommitment(
+        id=f"C-{uuid.uuid4().hex[:8].upper()}",
+        tracking_id=tracking_id,
+        customer_id=customer_id,
+        target_date=target_date,
+        priority=priority,
+    )
+    db.add(commitment)
+    db.commit()
+    db.refresh(commitment)
+    return commitment
+
+
+def list_commitments(db: Session, customer_id: str = "", active_only: bool = False):
+    query = db.query(DeliveryCommitment)
+    if customer_id:
+        query = query.filter(DeliveryCommitment.customer_id == customer_id)
+    if active_only:
+        query = query.filter(DeliveryCommitment.status.in_(("ACTIVE", "AT_RISK")))
+    return query.order_by(DeliveryCommitment.created_at.desc()).all()
+
+
+def set_commitment_status(db: Session, commitment_id: str, status: str, risk_reason: str = ""):
+    commitment = db.query(DeliveryCommitment).filter(DeliveryCommitment.id == commitment_id).first()
+    if not commitment:
+        return None
+    commitment.status = status
+    commitment.risk_reason = risk_reason
+    commitment.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(commitment)
+    return commitment

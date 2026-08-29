@@ -89,6 +89,28 @@ export class ApiService {
     return this.http.get(`${API}/journey/${trackingId}`);
   }
 
+  getAgentAnalytics(): Observable<any> {
+    return this.http.get(`${API}/analytics/agent`);
+  }
+
+  getActivity(customerId: string): Observable<any> {
+    return this.http.get(`${API}/activity/${customerId}`);
+  }
+
+  getCommitments(customerId: string): Observable<any> {
+    return this.http.get(`${API}/commitments/${customerId}`);
+  }
+
+  runFleetWatch(): Observable<any> {
+    return this.http.post(`${API}/agent/fleet-watch`, {});
+  }
+
+  /** CUST001-style id for the signed-in customer, or '' for agents/guests. */
+  ownCustomerId(): string {
+    const name = this.currentUser()?.username || '';
+    return name.toLowerCase().startsWith('cust') ? name.toUpperCase() : '';
+  }
+
   getNotifications(customerId: string): Observable<any> {
     return this.http.get(`${API}/notifications/${customerId}`);
   }
