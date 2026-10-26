@@ -296,33 +296,30 @@ curl http://127.0.0.1:8000/notifications/CUST001
 
 ## Frontend UI Components
 
-The Angular frontend provides four main views, accessible via tabs at the top of the page:
+The Angular frontend is a landing page, a sign-in page, and a signed-in app with a left rail of three views (four for FedEx agents):
 
-### 1. Track (Shipment Tracking)
-- Enter a tracking ID to view real-time shipment details
-- Displays: status (with color-coded badge), location, ETA, origin, destination
-- Status colors: green (delivered), blue (in_transit, out_for_delivery), red (delayed, cancelled), grey (created)
+### 1. Shipments
+- The customer's packages as one-tap chips (agents can type any tracking number)
+- Countdown to the planned delivery date, weather risk at the destination, and the animated journey map with the checkpoint timeline
+- **Change this delivery** panel: Reschedule (date), Hold for pickup, Redirect (address), Cancel. Redirect and Cancel ask for confirmation before they run, mirroring the agent's own autonomy tiers.
 
-### 2. Ask FedE (AI Chat)
-- Natural language chat interface
-- Type questions like "Where is my package FX100001?" — the backend detects intent and routes to the correct handler
-- Tracking queries work without an OpenAI API key; general questions require the key
-- Chat history persists within the session
+### 2. Ask FedE (agentic chat)
+- Natural-language chat with multi-turn memory; the "Speak to FedE" button opens the voice panel
+- Each reply lists what FedE did (tracked, checked weather, rescheduled, ...) above the answer
+- Inline tracking cards, the journey map, weather risk cards, and a tap-to-reschedule outlook strip
 
-### 3. Actions (Reschedule / Redirect / Cancel)
-- Three sub-tabs for shipment management operations
-- **Reschedule:** Change delivery date by providing tracking ID and new date
-- **Redirect:** Change delivery address by providing tracking ID and new address
-- **Cancel:** Cancel a shipment with an optional reason
-- Each action auto-creates a proactive notification for the customer
+### 3. Updates
+- Alerts FedE raised for the customer (delays, weather, new delivery dates), with mark-as-read
+- Deliveries FedE is watching (commitments) and their status
+- The record of every action FedE took on the customer's behalf
+- Agents can look up any customer ID
 
-### 4. Notifications
-- View proactive notifications for a customer
-- Enter a customer ID to load all notifications (ETA updates, delays, cancellations, redirects)
-- Mark individual notifications as read
+### 4. Operations (FedEx agents only)
+- Totals across the fleet, deliveries at risk, fleet by status, the recent-actions record
+- "Check every shipment now" runs the fleet watch on demand
 
 ### 5. Voice Sidebar (FedE Voice Assistant)
-Click the orange **"Speak"** button in the header to open the voice sidebar.
+Click the orange **"Speak to FedE"** button in the rail to open the voice panel.
 
 **Architecture (from `feature/ui-homepage`):**
 - Sidebar slides in from the right with a FedE avatar greeting
@@ -348,42 +345,36 @@ Click the orange **"Speak"** button in the header to open the voice sidebar.
 
 Open **http://localhost:4200** in your browser (both backend and frontend must be running).
 
-### Test Data for Each Tab
+### Test Data for Each View
 
-After running `python seed_data.py`, use the following data:
+After running `python seed_data.py`, sign in as `cust001` / `cust001-demo` (or `agent` / `fedex-agent-demo`) and try:
 
-#### Track Tab
+#### Shipments
 | Input | Expected Result |
 |-------|----------------|
-| `FX100001` | In Transit — Memphis, TN — ETA 2026-06-02 |
-| `FX100002` | Out for Delivery — Chicago, IL — ETA 2026-05-28 |
-| `FX100003` | Delivered — Dallas, TX |
-| `FX100004` | Delayed — Denver, CO — ETA 2026-06-05 |
-| `FX100005` | Created — Atlanta, GA — ETA 2026-06-10 |
+| `FX100001` | In transit, Memphis, TN, with the journey map and countdown |
+| `FX100002` | Out for delivery, Chicago, IL |
+| `FX100003` | Delivered, Dallas, TX (the change panel is closed) |
+| `FX100004` | Delayed, Denver, CO |
+| Reschedule `FX100001` to a future date | Green confirmation, chip and countdown update |
+| Cancel `FX100005` | A confirmation step appears before the cancel runs |
 
-#### Ask FedE Tab
+#### Ask FedE
 | Input Message | Expected Behavior |
 |---------------|-------------------|
-| `Where is my package FX100001?` | Returns tracking info: Memphis, TN, in_transit |
-| `Track FX100004` | Returns tracking info: Denver, CO, delayed |
-| `What is the status of FX100002?` | Returns tracking info: Chicago, IL, out_for_delivery |
-| `Hello` | Requires OPENAI_API_KEY — shows error if key not set |
+| `Where are my packages?` | Lists the signed-in customer's shipments |
+| `Reschedule FX100001 to 2026-12-05` | Reschedules it and shows the action above the reply |
+| `Will weather delay FX100001?` | Weather risk card and a clear-day outlook strip |
+| `Hold FX100006 for pickup` | Hold requested at the nearest FedEx location |
 
-#### Actions Tab
-| Action | Tracking ID | Additional Input | Expected Result |
-|--------|-------------|------------------|-----------------|
-| Reschedule | `FX100001` | New Date: `2026-06-15` | Success — ETA updated |
-| Redirect | `FX100002` | New Address: `456 Oak Ave, Houston, TX` | Success — destination updated |
-| Cancel | `FX100005` | Reason: `Changed my mind` | Success — status set to cancelled |
+#### Updates
+| Account | Expected |
+|---------|----------|
+| `cust001` | Alerts for FX100001 and FX100002, plus every action taken in Ask FedE or Shipments |
+| `cust002` | A delay alert for FX100004 |
+| `agent` | Look up any customer ID |
 
-#### Notifications Tab
-| Customer ID | Expected Notifications |
-|-------------|----------------------|
-| `CUST001` | 2 notifications (FX100001 transit update, FX100002 out for delivery) |
-| `CUST002` | 1 notification (FX100004 delay alert) |
-| `CUST003` | 0 notifications initially; appears after performing Actions on FX100005 |
-
-> **Tip:** After performing Reschedule/Redirect/Cancel actions, check the Notifications tab — new notifications are auto-created for the customer.
+> **Tip:** After changing a delivery, open Updates: the alert and the action record are created automatically.
 
 ### What Works Without an OpenAI API Key
 

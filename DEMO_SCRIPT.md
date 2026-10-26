@@ -22,14 +22,14 @@ in plain language, by text or by voice."
      role rides inside the token. No session cookies, no shared state."
    - One-click sign in as **Customer 001**.
 
-3. **Ask FedE tab: a read**
+3. **Ask FedE: a read**
    - Type: `where are all my packages?`
    - Narrate: "I never gave a tracking number. The agent chose the
      list_customer_shipments tool itself, with my customer ID from the JWT."
 
 4. **A real mutation**
    - Type: `reschedule FX100001 to next Friday`
-   - Then go to the **Track** tab, track FX100001, show the new ETA.
+   - Then open **Shipments**, pick FX100001, show the new countdown and date.
    - Say: "that was not a canned reply, the database row changed."
 
 5. **Security punchline**
@@ -210,9 +210,10 @@ cd frontend && npx ng serve
 12. **Map tracing**: track any package; the map now draws the traveled path in
     orange with checkmarked hubs, and a checkpoint timeline with times sits
     under the map (est. times for upcoming hubs).
-13. **Activity tab** (customers): every agent action, verified, with estimated
-    cost avoided. **Analytics tab** (agent login): stat tiles, tool usage,
-    audit log, autonomy policy, and a "Run fleet watch now" button.
+13. **Updates** (customers): alerts, the deliveries FedE is watching, and
+    every action it took. **Operations** (agent login): fleet totals,
+    deliveries at risk, the recent-actions record, and a "Check every
+    shipment now" button.
 14. **Governance to narrate**: redirect/cancel are tier 3; the TOOL refuses
     without explicit confirmation (try "cancel FX100001": the agent must ask
     first). Every mutation is read back and verified before success is

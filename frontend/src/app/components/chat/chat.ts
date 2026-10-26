@@ -53,19 +53,15 @@ interface ChatMessage {
   notificationCreated?: boolean;
   outlook?: DeliveryOutlook;
   journey?: JourneyData;
-  costAvoided?: number;
-  tokens?: number;
 }
 
 const SUGGESTIONS = [
-  'What are all my packages?',
-  'Show me the route for FX100001',
-  'I need FX100001 delivered before friday',
+  'Where are my packages?',
+  'Reschedule FX100001 to Friday',
   'Will weather delay FX100001?',
-  'Reschedule FX100001 to friday',
-  'Always deliver after 6pm',
   'Hold FX100006 for pickup',
-  'My package arrived damaged, I need help',
+  'I need FX100001 before Friday',
+  'My package arrived damaged',
 ];
 
 // Friendly labels for the tools the agent can invoke.
@@ -99,7 +95,6 @@ export class ChatComponent {
   messages = signal<ChatMessage[]>([]);
   loading = signal(false);
   suggestions = SUGGESTIONS;
-  sessionTokens = signal(0);  // cumulative tokens this session (agentic mode)
 
   // Stable per-session id so the agent has multi-turn memory.
   private readonly sessionId =
@@ -110,6 +105,15 @@ export class ChatComponent {
   @ViewChild('scrollAnchor') scrollAnchor?: ElementRef<HTMLDivElement>;
 
   constructor(private api: ApiService) {}
+
+  /** Replies may carry light markdown (bold, lists). Render that safely. */
+  format(text: string): string {
+    const safe = (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return safe
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/^\s*[-*]\s+/gm, '\u2022 ')
+      .replace(/\n{3,}/g, '\n\n');
+  }
 
   toolLabel(tool: string): string {
     return TOOL_LABELS[tool] || tool;
@@ -138,7 +142,7 @@ export class ChatComponent {
         this.scrollSoon();
       },
       error: () => {
-        this.messages.update(m => [...m, { role: 'ai', text: 'Sorry, something went wrong reaching FedE.' }]);
+        this.messages.update(m => [...m, { role: 'ai', text: 'FedE could not be reached. Check your connection and try again.' }]);
         this.loading.set(false);
         this.scrollSoon();
       }
@@ -173,8 +177,6 @@ export class ChatComponent {
       msg.text = data.message;
     } else if (data.response) {
       msg.text = data.response;
-    } else if (data.message) {
-      msg.text = data.message;
     } else if (data.error) {
       msg.text = `Error: ${data.error}`;
     } else {
@@ -220,17 +222,6 @@ export class ChatComponent {
       msg.shipments = data.shipments as TrackingCard[];
     }
 
-    // Cost avoided (customer-first byproduct, shown transparently).
-    if (data.estimated_cost_avoided_usd > 0) {
-      msg.costAvoided = data.estimated_cost_avoided_usd;
-    }
-
-    // Token usage (agentic only).
-    const total = resp.usage?.total_tokens || 0;
-    if (total > 0) {
-      msg.tokens = total;
-      this.sessionTokens.update(t => t + total);
-    }
 
     return msg;
   }
@@ -257,10 +248,10 @@ export class ChatComponent {
     return 'risk--' + (risk || 'unknown');
   }
 
-  riskIcon(risk?: string): string {
-    if (risk === 'high') return '⛈';
-    if (risk === 'moderate') return '🌧';
-    return '☀️';
+  riskWord(risk?: string): string {
+    if (risk === 'high') return 'Storm';
+    if (risk === 'moderate') return 'Rain';
+    return 'Clear';
   }
 
   /** One-click reschedule from the outlook strip. */

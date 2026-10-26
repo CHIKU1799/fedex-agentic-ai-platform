@@ -1,0 +1,85 @@
+<div class="upd">
+  <header class="upd__head">
+    <div>
+      <h2>Updates</h2>
+      <p class="muted">Alerts about your deliveries, the goals FedE is watching, and every action it took.</p>
+    </div>
+    @if (isAgent()) {
+      <form class="upd__lookup" (submit)="load(); $event.preventDefault()">
+        <input class="input" type="text" name="customer" [ngModel]="customerId()" (ngModelChange)="customerId.set($event)"
+               placeholder="Customer ID, e.g. CUST001" aria-label="Customer ID" />
+        <button class="btn btn--ink" type="submit" [disabled]="loading()">Look up</button>
+      </form>
+    }
+  </header>
+
+  @if (error()) { <p class="notice notice--bad">{{ error() }}</p> }
+
+  <div class="upd__grid">
+    <!-- Alerts -->
+    <section class="card upd__col">
+      <div class="upd__col-head">
+        <h3>Alerts</h3>
+        @if (unreadCount()) { <span class="pill pill--delayed">{{ unreadCount() }} new</span> }
+      </div>
+      @if (!notifications().length && !loading()) {
+        <p class="upd__empty">No alerts yet. FedE adds one here when a delivery is delayed, rerouted for weather, or changed.</p>
+      }
+      <ul class="alerts">
+        @for (n of notifications(); track n.id) {
+          <li class="alert" [class.alert--read]="n.is_read === 'true'">
+            <div class="alert__top">
+              <span class="pill" [class]="'pill pill--' + n.notification_type">{{ typeLabel(n.notification_type) }}</span>
+              <span class="alert__id">{{ n.tracking_id }}</span>
+              @if (n.is_read !== 'true') {
+                <button class="alert__read" (click)="markRead(n.id)">Mark read</button>
+              }
+            </div>
+            <p class="alert__msg">{{ n.message }}</p>
+            @if (when(n.created_at); as t) { <span class="alert__when">{{ t }}</span> }
+          </li>
+        }
+      </ul>
+    </section>
+
+    <div class="upd__col upd__col--stack">
+      <!-- Goals FedE is watching -->
+      @if (commitments().length) {
+        <section class="card upd__box">
+          <h3>Deliveries FedE is watching</h3>
+          <ul class="goals">
+            @for (c of commitments(); track c.commitment_id) {
+              <li class="goal">
+                <div class="goal__top">
+                  <span class="goal__id">{{ c.tracking_id }}</span>
+                  <span class="pill" [class]="'pill pill--' + c.status.toLowerCase()">{{ c.status.replace('_', ' ') }}</span>
+                </div>
+                <span class="goal__target">Needed by {{ c.target_date }}</span>
+                @if (c.risk_reason) { <span class="goal__risk">{{ c.risk_reason }}</span> }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <!-- Action record -->
+      <section class="card upd__box">
+        <h3>What FedE did</h3>
+        @if (!events().length) {
+          <p class="upd__empty">Nothing yet. Ask FedE to change a delivery and the action shows up here.</p>
+        }
+        <ul class="log">
+          @for (e of events(); track $index) {
+            <li class="log__row" [class.log__row--fail]="!e.ok">
+              <span class="log__mark">{{ e.ok ? '✓' : '!' }}</span>
+              <div class="log__body">
+                <span>{{ e.note }}</span>
+                <span class="log__when">{{ when(e.at) }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>

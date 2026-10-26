@@ -1,7 +1,139 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f8f8f8;
-  color: #333;
+/* FedE design tokens. Purple is the ink, orange is the one action colour
+   per view, everything else stays quiet. */
+:root {
+  --purple: #4d148c;
+  --purple-deep: #2e0a5c;
+  --purple-soft: #ece5f6;
+  --orange: #ff6200;
+  --orange-deep: #d94f00;
+  --ink: #1c1530;
+  --muted: #6c6680;
+  --paper: #f6f4f9;
+  --surface: #ffffff;
+  --line: #e4dfec;
+  --line-strong: #cfc8dc;
+  --ok: #157a4b;
+  --ok-soft: #e3f3ea;
+  --warn: #b2600b;
+  --warn-soft: #fdf0dc;
+  --bad: #b4262a;
+  --bad-soft: #fbe5e5;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --font-display: 'Bricolage Grotesque', 'Figtree', system-ui, sans-serif;
+  --font-ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
-h2 { color: #4d148c; margin-bottom: 16px; font-size: 22px; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--purple); }
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--ink);
+}
+h2 { font-size: 26px; }
+h3 { font-size: 17px; }
+
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
+}
+
+/* ── Shared primitives ───────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn--primary { background: var(--orange); color: #fff; }
+.btn--primary:hover:not(:disabled) { background: var(--orange-deep); }
+.btn--ink { background: var(--purple); color: #fff; }
+.btn--ink:hover:not(:disabled) { background: var(--purple-deep); }
+.btn--quiet { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
+.btn--quiet:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); }
+.btn--danger { background: var(--surface); color: var(--bad); border-color: var(--bad); }
+.btn--danger:hover:not(:disabled) { background: var(--bad); color: #fff; }
+.btn--lg { padding: 14px 26px; font-size: 16px; }
+.btn--sm { padding: 7px 14px; font-size: 13px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color .15s, box-shadow .15s;
+}
+.input::placeholder { color: #a39db4; }
+.input:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px var(--purple-soft); }
+
+/* Status pills: the word is always present, colour only tints it. */
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  background: var(--paper);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pill::first-letter { text-transform: uppercase; }
+.pill--in_transit, .pill--in-transit, .pill--picked_up, .pill--picked-up,
+.pill--out_for_delivery, .pill--out-for-delivery, .pill--label_created, .pill--label-created, .pill--rescheduled, .pill--redirected, .pill--created, .pill--pending { background: var(--purple-soft); color: var(--purple); }
+.pill--delivered, .pill--met, .pill--active, .pill--low, .pill--ok { background: var(--ok-soft); color: var(--ok); }
+.pill--delayed, .pill--hold_requested, .pill--hold-requested, .pill--at_risk, .pill--at-risk, .pill--moderate, .pill--eta_update, .pill--eta-update, .pill--weather_alert, .pill--weather-alert { background: var(--warn-soft); color: var(--warn); }
+.pill--exception, .pill--cancelled, .pill--delivery_attempt_failed, .pill--delivery-attempt-failed, .pill--high, .pill--failed, .pill--delay { background: var(--bad-soft); color: var(--bad); }
+
+.notice {
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  border: 1px solid transparent;
+}
+.notice--bad { background: var(--bad-soft); color: var(--bad); border-color: #f1c4c4; }
+.notice--ok { background: var(--ok-soft); color: var(--ok); border-color: #bfe3cd; }
+.notice--warn { background: var(--warn-soft); color: var(--warn); border-color: #f3d9b2; }
+
+.mono { font-family: var(--mono); font-size: .92em; }
+.muted { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

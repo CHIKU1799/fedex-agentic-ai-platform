@@ -30,7 +30,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: #4d148c;
+  background: var(--purple);
   color: #ffffff;
   flex-shrink: 0;
 }
@@ -45,7 +45,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #ff6200;
+  background: var(--orange);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -104,7 +104,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #4d148c;
+  background: var(--purple);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -114,27 +114,27 @@
   flex-shrink: 0;
 }
 
-.fede-msg--user .fede-msg__avatar { background: #ff6200; }
+.fede-msg--user .fede-msg__avatar { background: var(--orange); }
 
 .fede-msg__bubble {
-  background: #f3f3f3;
+  background: var(--paper);
   border-radius: 12px 12px 12px 2px;
   padding: 10px 14px;
   font-size: 0.875rem;
   line-height: 1.5;
-  color: #333333;
+  color: var(--ink);
   word-break: break-word;
 }
 
 .fede-msg--user .fede-msg__bubble {
-  background: #4d148c;
+  background: var(--purple);
   color: #ffffff;
   border-radius: 12px 12px 2px 12px;
 }
 
 .fede-tracking-card {
   background: #ffffff;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
   min-width: 220px;
@@ -142,7 +142,7 @@
 }
 
 .fede-tracking-card__header {
-  background: #4d148c;
+  background: var(--purple);
   color: #ffffff;
   padding: 8px 14px;
   font-size: 0.8rem;
@@ -158,8 +158,8 @@
   font-size: 0.75rem;
   font-weight: 700;
   margin-bottom: 10px;
-  background: #e0e0e0;
-  color: #333333;
+  background: var(--line);
+  color: var(--ink);
 }
 
 .fede-tracking-card__status-badge--in_transit,
@@ -180,22 +180,22 @@
   align-items: flex-start;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--line);
   font-size: 0.8rem;
 }
 
 .fede-tracking-card__row:last-child { border-bottom: none; }
-.fede-tracking-card__label { color: #666666; font-weight: 500; flex-shrink: 0; }
-.fede-tracking-card__value { color: #333333; font-weight: 700; text-align: right; }
+.fede-tracking-card__label { color: var(--muted); font-weight: 500; flex-shrink: 0; }
+.fede-tracking-card__value { color: var(--ink); font-weight: 700; text-align: right; }
 
 .fede-sidebar__controls {
   flex-shrink: 0;
   padding: 16px 20px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: #fafafa;
+  background: var(--paper);
 }
 
 .fede-sidebar__recording-indicator {
@@ -203,7 +203,7 @@
   align-items: center;
   gap: 8px;
   font-size: 0.875rem;
-  color: #4d148c;
+  color: var(--purple);
   font-weight: 500;
 }
 
@@ -211,7 +211,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ff6200;
+  background: var(--orange);
   animation: pulse 1s infinite;
 }
 
@@ -225,8 +225,8 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 0.8125rem;
-  color: #c00000;
-  background: #fff0f0;
+  color: var(--bad);
+  background: var(--bad-soft);
   border: 1px solid #ffcccc;
   padding: 8px 12px;
   border-radius: 4px;
@@ -243,7 +243,7 @@
 
 .fede-sidebar__wave-bar {
   width: 3px;
-  background-color: #ff6200;
+  background-color: var(--orange);
   border-radius: 1.5px;
   animation: waveAnimation 0.6s ease-in-out infinite;
 }
@@ -270,7 +270,7 @@
 .fede-sidebar__status-text {
   margin: 0;
   font-size: 0.8125rem;
-  color: #4d148c;
+  color: var(--purple);
   text-align: center;
 }
 
@@ -284,7 +284,7 @@
   border-radius: 50%;
   padding: 0;
   color: #ffffff;
-  background: #4d148c;
+  background: var(--purple);
   border: none;
   cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.1s;
@@ -304,7 +304,7 @@
 }
 
 .fede-sidebar.is-listening .fede-sidebar__mic-toggle-btn {
-  background: #ff6200;
+  background: var(--orange);
   box-shadow: 0 0 0 6px rgba(255, 98, 0, 0.2);
 }
 
@@ -314,12 +314,12 @@
   padding: 16px;
   border: 1px solid rgba(74, 21, 117, 0.25);
   border-radius: 12px;
-  background: #faf7ff;
+  background: var(--purple-soft);
 }
 .fede-consent__title {
   margin: 0 0 6px;
   font-weight: 600;
-  color: #4a1575;
+  color: var(--purple);
 }
 .fede-consent__body {
   margin: 0 0 12px;
@@ -334,16 +334,16 @@
 .fede-consent__btn {
   flex: 1;
   padding: 9px 12px;
-  border: 1px solid #cbb8e0;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: #fff;
-  color: #4a1575;
+  color: var(--purple);
   font-weight: 600;
   cursor: pointer;
 }
 .fede-consent__btn--primary {
-  background: #ff6200;
-  border-color: #ff6200;
+  background: var(--orange);
+  border-color: var(--orange);
   color: #fff;
 }
 .fede-consent__btn:hover {
@@ -354,9 +354,9 @@
 .fede-sidebar__mic-off {
   margin: 0 0 6px;
   font-size: 12px;
-  color: #8a8a8a;
+  color: var(--muted);
   text-align: center;
 }
 .fede-sidebar__mic-off::first-letter {
-  color: #b5b5b5;
+  color: var(--muted);
 }

@@ -1,12 +1,12 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 
 /**
- * Agentic analytics (ops console, agent role): what the AI actually did.
- * Stat tiles, a single-hue tool-usage bar list (magnitude), provider mix,
- * commitments health, the audit feed, and a live fleet-watch trigger.
- * Status colors always ride with their text label, never color alone.
+ * Operations (agent role): what FedE did across the fleet. Stat tiles,
+ * deliveries at risk, fleet status, the recent-actions record, and a
+ * button to run the fleet check now. Status colours always ride with a
+ * text label, never colour alone.
  */
 @Component({
   selector: 'app-analytics',
@@ -21,11 +21,6 @@ export class AnalyticsComponent implements OnInit {
   sweeping = signal(false);
   error = signal('');
 
-  maxToolCount = computed(() => {
-    const usage = this.data()?.tool_usage || [];
-    return usage.length ? usage[0].count : 1;
-  });
-
   constructor(private api: ApiService) {}
 
   ngOnInit(): void {
@@ -37,8 +32,8 @@ export class AnalyticsComponent implements OnInit {
       next: (res) => this.data.set(res),
       error: (err) => this.error.set(
         err.status === 403
-          ? 'Agent role required: sign in as "agent" to view the ops console.'
-          : 'Could not load analytics.'),
+          ? 'Operations is only available to FedEx agents.'
+          : 'Operations data could not be loaded. Try again in a moment.'),
     });
   }
 
@@ -52,14 +47,10 @@ export class AnalyticsComponent implements OnInit {
         this.load();
       },
       error: () => {
-        this.error.set('Fleet watch failed to run.');
+        this.error.set('The fleet check did not finish. Try again in a moment.');
         this.sweeping.set(false);
       }
     });
-  }
-
-  barWidth(count: number): string {
-    return Math.max(4, Math.round((count / this.maxToolCount()) * 100)) + '%';
   }
 
   objectEntries(obj: any): { key: string; value: any }[] {

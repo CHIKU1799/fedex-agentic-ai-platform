@@ -1,37 +1,36 @@
 import { Component, signal, ViewChild } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { TrackingComponent } from '../tracking/tracking';
 import { ChatComponent } from '../chat/chat';
-import { ActionsComponent } from '../actions/actions';
-import { NotificationsComponent } from '../notifications/notifications';
-import { ActivityComponent } from '../activity/activity';
+import { UpdatesComponent } from '../updates/updates';
 import { AnalyticsComponent } from '../analytics/analytics';
 import { VoiceSidebarComponent } from '../voice-sidebar/voice-sidebar';
-import { LoginComponent } from '../login/login';
 import { ApiService } from '../../services/api.service';
 
-type Tab = 'track' | 'chat' | 'actions' | 'notifications' | 'activity' | 'analytics';
+type Tab = 'shipments' | 'ask' | 'updates' | 'ops';
 
+/**
+ * The signed-in app shell: a left rail with the three things a customer
+ * does here (see shipments, ask FedE, read updates) plus an operations
+ * view for FedEx agents. On phones the rail becomes a bottom bar.
+ */
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [TrackingComponent, ChatComponent, ActionsComponent, NotificationsComponent,
-            ActivityComponent, AnalyticsComponent, VoiceSidebarComponent, LoginComponent],
+  imports: [RouterLink, TrackingComponent, ChatComponent, UpdatesComponent,
+            AnalyticsComponent, VoiceSidebarComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css'
 })
 export class DashboardComponent {
-  activeTab = signal<Tab>('track');
+  activeTab = signal<Tab>('shipments');
 
   @ViewChild('voiceSidebar') voiceSidebar!: VoiceSidebarComponent;
 
-  constructor(public api: ApiService) {}
+  constructor(public api: ApiService, private router: Router) {}
 
   setTab(tab: Tab) {
     this.activeTab.set(tab);
-  }
-
-  isCustomer(): boolean {
-    return !!this.api.ownCustomerId();
   }
 
   isAgent(): boolean {
@@ -40,5 +39,10 @@ export class DashboardComponent {
 
   openVoice() {
     this.voiceSidebar.open();
+  }
+
+  signOut() {
+    this.api.logout();
+    this.router.navigate(['/']);
   }
 }

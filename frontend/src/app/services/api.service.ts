@@ -85,6 +85,10 @@ export class ApiService {
     return this.http.post(`${API}/cancel`, { tracking_id: trackingId, reason });
   }
 
+  hold(trackingId: string, location = ''): Observable<any> {
+    return this.http.post(`${API}/hold`, { tracking_id: trackingId, location: location || null });
+  }
+
   getJourney(trackingId: string): Observable<any> {
     return this.http.get(`${API}/journey/${trackingId}`);
   }

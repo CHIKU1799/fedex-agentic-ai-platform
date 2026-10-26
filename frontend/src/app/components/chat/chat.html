@@ -1,165 +1,122 @@
-<div class="chat-container">
-  <div class="chat-header">
-    <div>
-      <h2>Ask FedE</h2>
-      <p class="hint">Your agentic assistant — it takes real actions, not just answers.</p>
-    </div>
-    @if (sessionTokens() > 0) {
-      <span class="token-pill" title="Tokens used this session (agentic mode)">
-        ⚡ {{ sessionTokens() }} tokens
-      </span>
-    }
+<div class="chat">
+  <div class="chat__head">
+    <h2>Ask FedE</h2>
+    <p class="muted">Ask for a change in your own words. FedE checks, acts, and tells you what it did.</p>
   </div>
 
-  <div class="chat-messages">
+  <div class="chat__log" role="log" aria-live="polite">
     @if (messages().length === 0) {
-      <div class="empty-state">
-        <div class="empty-avatar">F</div>
-        <p class="empty-title">Hey, I'm FedE.</p>
-        <p class="empty-sub">Ask me to track, reschedule, redirect or cancel a shipment.</p>
-        <div class="suggestions">
+      <div class="chat__empty">
+        <p class="chat__empty-title">What do you need?</p>
+        <div class="chat__suggest">
           @for (s of suggestions; track s) {
-            <button class="suggestion-chip" (click)="useSuggestion(s)">{{ s }}</button>
+            <button class="chat__suggest-btn" (click)="useSuggestion(s)">{{ s }}</button>
           }
         </div>
       </div>
     }
 
     @for (msg of messages(); track $index) {
-      <div class="msg" [class]="msg.role">
-        <div class="msg__avatar">{{ msg.role === 'user' ? 'You' : 'F' }}</div>
+      <div class="msg" [class.msg--user]="msg.role === 'user'" [class.msg--ai]="msg.role === 'ai'">
         <div class="msg__body">
-          <div class="bubble">{{ msg.text }}</div>
 
-          <!-- Action chips: what the agent actually did -->
+          <!-- What FedE did, before what it said -->
           @if (msg.actions?.length) {
-            <div class="action-chips">
+            <ol class="trail" aria-label="What FedE did">
               @for (a of msg.actions; track $index) {
-                <span class="action-chip" [class.action-chip--fail]="!a.ok">
-                  {{ a.ok ? '✓' : '✕' }} {{ toolLabel(a.tool) }}
-                </span>
+                <li class="trail__step" [class.trail__step--fail]="!a.ok">
+                  <span class="trail__mark">{{ a.ok ? '✓' : '!' }}</span>{{ toolLabel(a.tool) }}
+                </li>
               }
-            </div>
+            </ol>
           }
 
-          <!-- Inline tracking card -->
+          <div class="bubble" [innerHTML]="format(msg.text)"></div>
+
           @if (msg.card) {
-            <div class="track-card">
-              <div class="track-card__top">
-                <span class="track-card__id">{{ msg.card.tracking_id }}</span>
-                <span class="badge" [class]="statusClass(msg.card.status)">{{ msg.card.status }}</span>
+            <div class="tcard">
+              <div class="tcard__top">
+                <span class="tcard__id">{{ msg.card.tracking_id }}</span>
+                <span [class]="statusClass(msg.card.status)">{{ msg.card.status.replace('_', ' ') }}</span>
               </div>
-              <div class="track-card__row"><span>Location</span><b>{{ msg.card.location || '—' }}</b></div>
-              <div class="track-card__row"><span>ETA</span><b>{{ msg.card.eta || '—' }}</b></div>
-              @if (msg.card.destination) {
-                <div class="track-card__row"><span>Destination</span><b>{{ msg.card.destination }}</b></div>
-              }
+              <div class="tcard__row"><span>Now at</span><b>{{ msg.card.location || 'unknown' }}</b></div>
+              <div class="tcard__row"><span>Arrives</span><b>{{ msg.card.eta || 'to be confirmed' }}</b></div>
+              @if (msg.card.destination) { <div class="tcard__row"><span>To</span><b>{{ msg.card.destination }}</b></div> }
             </div>
           }
 
-          <!-- Animated journey map -->
-          @if (msg.journey) {
-            <app-journey-map [journey]="msg.journey" />
-          }
+          @if (msg.journey) { <app-journey-map [journey]="msg.journey" /> }
 
-          <!-- Weather risk card -->
           @if (msg.weather) {
-            <div class="weather-card" [class]="riskClass(msg.weather.risk)">
+            <div class="wx" [class]="'wx ' + riskClass(msg.weather.risk)">
               @if (msg.weather.available) {
-                <div class="weather-card__top">
-                  <span class="weather-card__icon">{{ riskIcon(msg.weather.risk) }}</span>
+                <div class="wx__top">
                   <div>
-                    <div class="weather-card__place">{{ msg.weather.location }} · {{ msg.weather.forecast_date }}</div>
-                    <div class="weather-card__cond">{{ msg.weather.conditions }}</div>
+                    <div class="wx__place">{{ msg.weather.location }}, {{ msg.weather.forecast_date }}</div>
+                    <div class="wx__cond">{{ msg.weather.conditions }}</div>
                   </div>
-                  <span class="risk-badge" [class]="riskClass(msg.weather.risk)">{{ msg.weather.risk }} risk</span>
+                  <span class="pill" [class]="'pill pill--' + msg.weather.risk">{{ msg.weather.risk }} risk</span>
                 </div>
                 @if (msg.weather.temperature_max_c !== null && msg.weather.temperature_max_c !== undefined) {
-                  <div class="weather-card__temps">
-                    {{ msg.weather.temperature_min_c }}°C to {{ msg.weather.temperature_max_c }}°C
-                  </div>
+                  <div class="wx__temps">{{ msg.weather.temperature_min_c }}° to {{ msg.weather.temperature_max_c }}°C</div>
                 }
-                @if (msg.weather.note) {
-                  <div class="weather-card__note">ℹ️ {{ msg.weather.note }}</div>
-                }
-                @if (msg.notificationCreated) {
-                  <div class="weather-card__note">🔔 Proactive weather alert sent to the customer</div>
-                }
+                @if (msg.weather.note) { <div class="wx__note">{{ msg.weather.note }}</div> }
+                @if (msg.notificationCreated) { <div class="wx__note">A weather alert was added to your Updates.</div> }
               } @else {
-                <div class="weather-card__cond">{{ msg.weather.reason || 'Weather data unavailable.' }}</div>
+                <div class="wx__cond">{{ msg.weather.reason || 'Weather data is unavailable right now.' }}</div>
               }
             </div>
           }
 
-          <!-- Delivery-date outlook strip -->
           @if (msg.outlook) {
             <div class="outlook">
-              <div class="outlook__title">Next days at the destination (tap a clear day to reschedule)</div>
+              <div class="outlook__title">Pick a clear day to reschedule</div>
               <div class="outlook__strip">
                 @for (d of msg.outlook.days; track d.date) {
-                  <button
-                    class="outlook__day"
-                    [class]="riskClass(d.risk)"
-                    [class.outlook__day--pick]="d.date === msg.outlook.recommended_date"
-                    [disabled]="d.risk === 'high' || loading()"
-                    (click)="rescheduleTo(msg.outlook.tracking_id, d.date)"
-                    title="{{ d.conditions }}"
-                  >
-                    <span class="outlook__icon">{{ riskIcon(d.risk) }}</span>
+                  <button class="outlook__day" [class]="'outlook__day ' + riskClass(d.risk)"
+                          [class.outlook__day--best]="d.date === msg.outlook.recommended_date"
+                          [disabled]="d.risk === 'high' || loading()"
+                          (click)="rescheduleTo(msg.outlook.tracking_id, d.date)" title="{{ d.conditions }}">
                     <span class="outlook__date">{{ d.date.slice(5) }}</span>
-                    @if (d.date === msg.outlook.recommended_date) {
-                      <span class="outlook__star">best</span>
-                    }
+                    <span class="outlook__risk">{{ riskWord(d.risk) }}</span>
+                    @if (d.date === msg.outlook.recommended_date) { <span class="outlook__best">best</span> }
                   </button>
                 }
               </div>
             </div>
           }
 
-          <!-- Inline shipment list -->
           @if (msg.shipments?.length) {
-            <div class="shipment-list">
+            <div class="slist">
               @for (s of msg.shipments; track s.tracking_id) {
-                <div class="shipment-row">
-                  <span class="shipment-row__id">{{ s.tracking_id }}</span>
-                  <span class="badge" [class]="statusClass(s.status)">{{ s.status }}</span>
-                  <span class="shipment-row__eta">ETA {{ s.eta }}</span>
+                <div class="slist__row">
+                  <span class="slist__id">{{ s.tracking_id }}</span>
+                  <span [class]="statusClass(s.status)">{{ s.status.replace('_', ' ') }}</span>
+                  <span class="slist__eta">arrives {{ s.eta }}</span>
                 </div>
               }
             </div>
-          }
-
-          @if (msg.costAvoided) {
-            <span class="cost-note">💰 Estimated cost avoided: ${{ msg.costAvoided | number:'1.2-2' }}</span>
-          }
-          @if (msg.tokens) {
-            <span class="token-note">⚡ {{ msg.tokens }} tokens</span>
           }
         </div>
       </div>
     }
 
     @if (loading()) {
-      <div class="msg ai">
-        <div class="msg__avatar">F</div>
+      <div class="msg msg--ai">
         <div class="msg__body">
-          <div class="bubble typing">
-            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-          </div>
+          <div class="bubble bubble--typing"><span></span><span></span><span></span></div>
         </div>
       </div>
     }
     <div #scrollAnchor></div>
   </div>
 
-  <div class="chat-input">
-    <input
-      type="text"
-      [ngModel]="query()"
-      (ngModelChange)="query.set($event)"
-      placeholder="Ask FedE anything about your shipments…"
-      (keyup.enter)="send()"
-    />
-    <button (click)="send()" [disabled]="loading() || !query().trim()">Send</button>
-  </div>
+  <form class="composer" (submit)="send(); $event.preventDefault()">
+    <input class="composer__input" type="text" name="query" autocomplete="off"
+           [ngModel]="query()" (ngModelChange)="query.set($event)"
+           placeholder="Ask FedE anything about your deliveries" aria-label="Message FedE" />
+    <button class="composer__send" type="submit" [disabled]="loading() || !query().trim()" aria-label="Send">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
 </div>

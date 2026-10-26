@@ -1,137 +1,78 @@
-<div class="analytics-container">
-  <div class="analytics-head">
+<div class="ops">
+  <header class="ops__head">
     <div>
-      <h2>📊 Agentic Analytics</h2>
-      <p class="hint">What the AI actually did: audited, verified, and costed. Customer outcomes rank above cost savings by policy.</p>
+      <h2>Operations</h2>
+      <p class="muted">What FedE did across the fleet, and the deliveries that need attention.</p>
     </div>
-    <button class="sweep-btn" (click)="runSweep()" [disabled]="sweeping()">
-      {{ sweeping() ? 'Sweeping…' : '🛰️ Run fleet watch now' }}
+    <button class="btn btn--ink" (click)="runSweep()" [disabled]="sweeping()">
+      {{ sweeping() ? 'Checking every shipment…' : 'Check every shipment now' }}
     </button>
-  </div>
+  </header>
 
-  @if (error()) {
-    <div class="error-msg">{{ error() }}</div>
-  }
+  @if (error()) { <p class="notice notice--bad">{{ error() }}</p> }
 
   @if (sweep(); as s) {
-    <div class="sweep-result">
-      <b>Sweep done:</b> {{ s.scanned }} shipments scanned, {{ s.flagged.length }} flagged,
-      {{ s.notifications_created }} customers notified.
-      @if (s.commitments) {
-        Commitments: {{ s.commitments.active }} on track, {{ s.commitments.at_risk }} at risk,
-        {{ s.commitments.met }} met.
-      }
-    </div>
+    <p class="notice notice--ok">
+      Checked {{ s.scanned }} shipments. {{ s.flagged.length }} need attention and {{ s.notifications_created }} customers were told.
+      @if (s.commitments) { {{ s.commitments.at_risk }} watched deliveries are at risk. }
+    </p>
   }
 
   @if (data(); as d) {
-    <!-- Stat tiles -->
     <div class="tiles">
-      <div class="tile">
-        <span class="tile__value">{{ d.totals.agent_actions }}</span>
-        <span class="tile__label">agent actions</span>
-      </div>
-      <div class="tile">
-        <span class="tile__value">{{ pct(d.totals.success_rate) }}</span>
-        <span class="tile__label">success rate</span>
-      </div>
-      <div class="tile">
-        <span class="tile__value">${{ d.totals.cost_avoided_usd | number:'1.2-2' }}</span>
-        <span class="tile__label">est. cost avoided</span>
-      </div>
-      <div class="tile">
-        <span class="tile__value">{{ d.commitments.total }}</span>
-        <span class="tile__label">commitments</span>
-      </div>
-      <div class="tile">
-        <span class="tile__value">{{ d.totals.cases_open }}</span>
-        <span class="tile__label">open cases</span>
-      </div>
-      <div class="tile">
-        <span class="tile__value">{{ d.totals.notifications_sent }}</span>
-        <span class="tile__label">notifications</span>
-      </div>
+      <div class="card tile"><span class="tile__value">{{ d.totals.agent_actions }}</span><span class="tile__label">actions taken by FedE</span></div>
+      <div class="card tile"><span class="tile__value">{{ pct(d.totals.success_rate) }}</span><span class="tile__label">completed without error</span></div>
+      <div class="card tile"><span class="tile__value">{{ d.commitments.total }}</span><span class="tile__label">deliveries being watched</span></div>
+      <div class="card tile"><span class="tile__value">{{ d.totals.cases_open }}</span><span class="tile__label">open support cases</span></div>
+      <div class="card tile"><span class="tile__value">{{ d.totals.notifications_sent }}</span><span class="tile__label">customer alerts sent</span></div>
+      <div class="card tile"><span class="tile__value">${{ d.totals.cost_avoided_usd | number:'1.0-0' }}</span><span class="tile__label">failed-attempt cost avoided</span></div>
     </div>
 
-    <!-- At-risk commitments -->
-    @if (d.commitments.at_risk.length) {
-      <h3 class="section-title">⚠️ Commitments at risk</h3>
-      <div class="risk-list">
-        @for (c of d.commitments.at_risk; track c.commitment_id) {
-          <div class="risk-item">
-            <span class="risk-item__badge">AT RISK</span>
-            <div>
-              <b>{{ c.tracking_id }}</b> for {{ c.customer_id }} · target {{ c.target_date }}
-              <div class="risk-item__reason">{{ c.risk_reason }}</div>
-            </div>
-          </div>
+    <div class="ops__grid">
+      <section class="card ops__box">
+        <h3>Deliveries at risk</h3>
+        @if (!d.commitments.at_risk.length) {
+          <p class="muted ops__empty">Every watched delivery is on track.</p>
         }
-      </div>
-    }
-
-    <!-- Tool usage bar list (single hue: magnitude) -->
-    <h3 class="section-title">Tool usage</h3>
-    @if (!d.tool_usage.length) {
-      <p class="empty">No agent actions recorded yet this session.</p>
-    }
-    <div class="bars">
-      @for (t of d.tool_usage; track t.tool) {
-        <div class="bar-row">
-          <span class="bar-row__name">{{ t.tool }}</span>
-          <div class="bar-row__track">
-            <div class="bar-row__fill" [style.width]="barWidth(t.count)"></div>
-          </div>
-          <span class="bar-row__count">{{ t.count }}<span class="bar-row__ok"> ({{ t.ok }} ok)</span></span>
-        </div>
-      }
-    </div>
-
-    <!-- Provider mix + shipment states -->
-    <div class="split">
-      <div>
-        <h3 class="section-title">Brain used</h3>
-        <div class="chips">
-          @for (p of objectEntries(d.provider_usage); track p.key) {
-            <span class="chip">{{ p.key }}: <b>{{ p.value }}</b></span>
+        <ul class="risk">
+          @for (c of d.commitments.at_risk; track c.commitment_id) {
+            <li class="risk__row">
+              <div class="risk__top">
+                <span class="risk__id">{{ c.tracking_id }}</span>
+                <span class="pill pill--at_risk">at risk</span>
+              </div>
+              <span class="risk__meta">{{ c.customer_id }} needs it by {{ c.target_date }}</span>
+              <span class="risk__why">{{ c.risk_reason }}</span>
+            </li>
           }
-        </div>
-      </div>
-      <div>
-        <h3 class="section-title">Fleet by status</h3>
-        <div class="chips">
+        </ul>
+
+        <h3 class="ops__sub">Fleet by status</h3>
+        <div class="statuses">
           @for (s of objectEntries(d.shipments_by_status); track s.key) {
-            <span class="chip">{{ s.key }}: <b>{{ s.value }}</b></span>
+            <span class="pill" [class]="'pill pill--' + s.key">{{ s.key.replace('_', ' ') }}: {{ s.value }}</span>
           }
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Audit feed -->
-    <h3 class="section-title">Recent agent actions (audit log)</h3>
-    <table class="audit">
-      <thead>
-        <tr><th>Time</th><th>Action</th><th>Result</th><th>Cost avoided</th></tr>
-      </thead>
-      <tbody>
-        @for (a of d.recent_actions; track a.at) {
-          <tr>
-            <td class="audit__time">{{ when(a.at) }}</td>
-            <td>{{ a.note || a.tool }}</td>
-            <td>
-              <span class="result" [class.result--fail]="!a.ok">{{ a.ok ? '✓ ok' : '✕ failed' }}</span>
-            </td>
-            <td class="audit__cost">{{ a.cost_avoided > 0 ? ('$' + (a.cost_avoided | number:'1.2-2')) : '' }}</td>
-          </tr>
+      <section class="card ops__box">
+        <h3>Recent actions</h3>
+        @if (!d.recent_actions.length) {
+          <p class="muted ops__empty">No actions recorded yet. Ask FedE for something from a customer account.</p>
         }
-      </tbody>
-    </table>
-
-    <!-- Governance: autonomy tiers -->
-    <h3 class="section-title">Autonomy policy (enforced in the tool layer)</h3>
-    <div class="policy">
-      <div class="policy__row"><span class="policy__tier policy__tier--1">Tier 1</span> Read-only checks (track, weather, route, dates): act silently.</div>
-      <div class="policy__row"><span class="policy__tier policy__tier--2">Tier 2</span> Reversible changes (reschedule, hold, memory, cases, commitments): act, then inform.</div>
-      <div class="policy__row"><span class="policy__tier policy__tier--3">Tier 3</span> High impact (redirect, cancel): the tool refuses until the customer explicitly confirms.</div>
+        <table class="audit">
+          <thead><tr><th>When</th><th>Action</th><th>Result</th></tr></thead>
+          <tbody>
+            @for (a of d.recent_actions; track $index) {
+              <tr>
+                <td class="audit__time">{{ when(a.at) }}</td>
+                <td>{{ a.note || a.tool }}</td>
+                <td><span class="pill" [class]="a.ok ? 'pill pill--ok' : 'pill pill--failed'">{{ a.ok ? 'done' : 'failed' }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </section>
     </div>
   }
 </div>

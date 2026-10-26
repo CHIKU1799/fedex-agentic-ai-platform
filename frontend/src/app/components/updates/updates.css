@@ -1,0 +1,40 @@
+.upd { display: flex; flex-direction: column; gap: 18px; }
+.upd__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.upd__lookup { display: flex; gap: 8px; min-width: 320px; }
+.upd__lookup .input { flex: 1; }
+
+.upd__grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; align-items: start; }
+.upd__col { padding: 20px; }
+.upd__col--stack { padding: 0; display: flex; flex-direction: column; gap: 18px; }
+.upd__box { padding: 20px; }
+.upd__col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.upd__box h3 { margin-bottom: 12px; }
+.upd__empty { color: var(--muted); font-size: 14px; }
+
+.alerts, .goals, .log { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+.alert { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.alert--read { opacity: .6; }
+.alert__top { display: flex; align-items: center; gap: 10px; }
+.alert__id { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.alert__read { margin-left: auto; border: none; background: transparent; color: var(--purple); font-size: 13px; font-weight: 600; }
+.alert__read:hover { text-decoration: underline; }
+.alert__msg { font-size: 14px; line-height: 1.45; }
+.alert__when { font-size: 12.5px; color: var(--muted); }
+
+.goal { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.goal__top { display: flex; align-items: center; justify-content: space-between; }
+.goal__id { font-family: var(--mono); font-weight: 700; }
+.goal__target { color: var(--muted); }
+.goal__risk { color: var(--warn); font-size: 13px; }
+
+.log__row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.log__mark { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--ok-soft); color: var(--ok); margin-top: 1px; }
+.log__row--fail .log__mark { background: var(--bad-soft); color: var(--bad); }
+.log__body { display: flex; flex-direction: column; gap: 2px; }
+.log__when { font-size: 12.5px; color: var(--muted); }
+
+@media (max-width: 1000px) {
+  .upd__grid { grid-template-columns: 1fr; }
+  .upd__lookup { min-width: 0; width: 100%; }
+}

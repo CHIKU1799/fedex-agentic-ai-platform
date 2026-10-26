@@ -1,78 +1,112 @@
-<div class="tracking-container">
-  <div class="track-head">
+<div class="ship">
+  <header class="ship__head">
     <div>
-      <h2>Live Tracking</h2>
-      <p class="track-sub">Every package on its real route, with weather-aware ETAs.</p>
+      <h2>Shipments</h2>
+      <p class="muted">Where each package is, and the controls to change its delivery.</p>
     </div>
-    <div class="search-bar">
-      <input
-        type="text"
-        [ngModel]="trackingId()"
-        (ngModelChange)="trackingId.set($event)"
-        placeholder="Tracking ID, e.g. FX100001"
-        (keyup.enter)="track()"
-      />
-      <button (click)="track()" [disabled]="loading()">
-        {{ loading() ? 'Tracking…' : 'Track' }}
-      </button>
-    </div>
-  </div>
+    <form class="ship__search" (submit)="track(); $event.preventDefault()">
+      <input class="input" type="text" [ngModel]="trackingId()" (ngModelChange)="trackingId.set($event)"
+             name="trackingId" placeholder="Tracking number, e.g. FX100001" aria-label="Tracking number" />
+      <button class="btn btn--ink" type="submit" [disabled]="loading()">{{ loading() ? 'Finding…' : 'Track' }}</button>
+    </form>
+  </header>
 
   @if (chips().length) {
-    <div class="chips-row" role="list">
+    <div class="chips" role="list" aria-label="Your shipments">
       @for (c of chips(); track c.tracking_id) {
-        <button class="ship-chip" role="listitem"
-                [class.ship-chip--active]="c.tracking_id === trackingId().toUpperCase()"
+        <button class="chip" role="listitem"
+                [class.chip--active]="c.tracking_id === trackingId().toUpperCase()"
                 (click)="trackId(c.tracking_id)">
-          <span class="ship-chip__id">{{ c.tracking_id }}</span>
-          @if (c.status) {
-            <span class="ship-chip__dot" [class]="statusClass(c.status)"></span>
-            <span class="ship-chip__status">{{ statusLabel(c.status) }}</span>
-          }
+          <span class="chip__id">{{ c.tracking_id }}</span>
+          @if (c.status) { <span [class]="pillClass(c.status)">{{ statusLabel(c.status) }}</span> }
         </button>
       }
     </div>
   }
 
-  @if (error()) {
-    <div class="error-msg">{{ error() }}</div>
-  }
+  @if (error()) { <p class="notice notice--bad">{{ error() }}</p> }
 
   @if (result(); as r) {
-    <div class="result-grid">
-      <aside class="detail-panel">
-        <div class="detail-panel__status" [class]="statusClass(r.status)">
-          {{ statusLabel(r.status) }}
+    <div class="ship__grid">
+      <aside class="card detail">
+        <div class="detail__top">
+          <span class="detail__id">{{ r.tracking_id }}</span>
+          <span [class]="pillClass(r.status)">{{ statusLabel(r.status) }}</span>
         </div>
-        <div class="countdown">
-          <span class="countdown__value">{{ countdown() }}</span>
-          <span class="countdown__label">until delivery · ETA {{ r.eta }}</span>
+        <div class="detail__eta">
+          <span class="detail__eta-value">{{ countdown() }}</span>
+          <span class="detail__eta-label">{{ countdownLabel() }}</span>
         </div>
         @if (destinationRisk(); as risk) {
-          <div class="risk-chip" [class]="'risk-chip--' + risk">
-            {{ risk === 'high' ? '⛈️ Storm risk at destination'
-               : risk === 'moderate' ? '🌦️ Weather watch at destination'
-               : '☀️ Clear at destination' }}
-          </div>
+          <span class="pill" [class]="'pill pill--' + risk">{{ riskText(risk) }}</span>
         }
-        <dl class="detail-list">
-          <div><dt>Tracking ID</dt><dd class="mono">{{ r.tracking_id }}</dd></div>
-          <div><dt>Current location</dt><dd>{{ r.location }}</dd></div>
+        <dl class="detail__list">
+          <div><dt>Now at</dt><dd>{{ r.location }}</dd></div>
           <div><dt>From</dt><dd>{{ r.origin }}</dd></div>
           <div><dt>To</dt><dd>{{ r.destination }}</dd></div>
-          @if (r.customer_id) {
-            <div><dt>Customer</dt><dd class="mono">{{ r.customer_id }}</dd></div>
-          }
+          @if (r.customer_id) { <div><dt>Customer</dt><dd class="mono">{{ r.customer_id }}</dd></div> }
         </dl>
-        <p class="detail-tip">Need a change? Ask FedE: "hold {{ r.tracking_id }} for pickup"
-        or "I need {{ r.tracking_id }} before friday".</p>
+
+        <!-- Manage this delivery -->
+        <div class="manage">
+          <h3>Change this delivery</h3>
+          @if (!canChange()) {
+            <p class="muted manage__closed">This shipment is {{ statusLabel(r.status) }}, so it can no longer be changed.</p>
+          } @else {
+            <div class="manage__choices">
+              <button class="manage__choice" [class.manage__choice--on]="action() === 'reschedule'" (click)="pick('reschedule')">Reschedule</button>
+              <button class="manage__choice" [class.manage__choice--on]="action() === 'hold'" (click)="pick('hold')">Hold for pickup</button>
+              <button class="manage__choice" [class.manage__choice--on]="action() === 'redirect'" (click)="pick('redirect')">Redirect</button>
+              <button class="manage__choice manage__choice--danger" [class.manage__choice--on]="action() === 'cancel'" (click)="pick('cancel')">Cancel</button>
+            </div>
+
+            @if (action(); as a) {
+              <form class="manage__form" (submit)="submit(); $event.preventDefault()">
+                @if (a === 'reschedule') {
+                  <div class="field">
+                    <label for="m-date">New delivery date</label>
+                    <input id="m-date" class="input" type="date" [min]="minDate()" [ngModel]="newDate()" (ngModelChange)="newDate.set($event)" name="newDate" />
+                  </div>
+                }
+                @if (a === 'hold') {
+                  <p class="manage__note">The package stops at the FedEx location nearest to {{ r.destination }} and waits for you.</p>
+                }
+                @if (a === 'redirect') {
+                  <div class="field">
+                    <label for="m-addr">New address</label>
+                    <input id="m-addr" class="input" type="text" placeholder="Street, city, state" [ngModel]="newAddress()" (ngModelChange)="newAddress.set($event)" name="newAddress" />
+                  </div>
+                }
+                @if (a === 'cancel') {
+                  <div class="field">
+                    <label for="m-reason">Reason (optional)</label>
+                    <input id="m-reason" class="input" type="text" placeholder="Why are you cancelling?" [ngModel]="reason()" (ngModelChange)="reason.set($event)" name="reason" />
+                  </div>
+                }
+
+                @if (actionError()) { <p class="notice notice--bad">{{ actionError() }}</p> }
+
+                @if (confirming()) {
+                  <p class="notice notice--warn">
+                    {{ a === 'cancel' ? 'Cancelling cannot be undone.' : 'This sends the package somewhere new.' }} Confirm to go ahead.
+                  </p>
+                }
+                <button class="btn" type="submit"
+                        [class.btn--primary]="a !== 'cancel'" [class.btn--danger]="a === 'cancel'" [disabled]="saving()">
+                  {{ saving() ? 'Working…' : confirming() ? 'Yes, ' + actionLabel(a).toLowerCase() : actionLabel(a) }}
+                </button>
+              </form>
+            }
+          }
+          @if (actionDone()) { <p class="notice notice--ok">{{ actionDone() }}</p> }
+        </div>
       </aside>
 
-      <div class="map-panel">
+      <div class="ship__map">
         @if (journey()) {
           <app-journey-map [journey]="journey()!" />
         } @else {
-          <div class="map-skeleton">Plotting the route…</div>
+          <div class="card ship__map-wait">Plotting the route…</div>
         }
       </div>
     </div>
