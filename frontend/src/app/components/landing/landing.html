@@ -6,6 +6,7 @@
       <nav class="nav__links">
         <a href="#does">What it does</a>
         <a href="#how">How it works</a>
+        <a href="#secure">Security</a>
         @if (api.isSignedIn()) {
           <a class="btn btn--ink" routerLink="/app">Open FedE</a>
         } @else {
@@ -121,6 +122,22 @@
         </button>
         <p class="how__hint">Demo accounts are one click away on the sign-in page.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- Security: the controls, named plainly -->
+  <section class="secure" id="secure">
+    <div class="secure__inner">
+      <h2>Built so the agent cannot overstep</h2>
+      <p class="secure__lede">FedE can change real deliveries, so every control sits in code the model cannot talk its way around.</p>
+      <dl class="secure__list">
+        <div><dt>Your account, your packages</dt><dd>Sign-in issues a short-lived signed token. Every tool checks that the package belongs to you before it acts, so a customer can never touch someone else's shipment.</dd></div>
+        <div><dt>Big changes wait for you</dt><dd>Redirects and cancellations are refused by the tool itself until you confirm in a pop-up, even if the model is tricked into trying.</dd></div>
+        <div><dt>No change is claimed unless it is real</dt><dd>Every change is read back from FedEx systems before FedE says it is done. A reply that claims a change with no action behind it is caught and corrected.</dd></div>
+        <div><dt>One rules engine</dt><dd>The chat agent and the buttons on screen call the same operations layer, so permissions and business rules can never drift apart.</dd></div>
+        <div><dt>Your microphone stays yours</dt><dd>Voice asks for consent every time, turns the mic off on its own, and deletes audio right after it is transcribed.</dd></div>
+        <div><dt>Hardened edges</dt><dd>Strict content security policy, allow-listed origins, rate limits, input validation, and sessions that end on their own. Code is scanned on every push.</dd></div>
+      </dl>
     </div>
   </section>
 

@@ -86,14 +86,9 @@
 
                 @if (actionError()) { <p class="notice notice--bad">{{ actionError() }}</p> }
 
-                @if (confirming()) {
-                  <p class="notice notice--warn">
-                    {{ a === 'cancel' ? 'Cancelling cannot be undone.' : 'This sends the package somewhere new.' }} Confirm to go ahead.
-                  </p>
-                }
                 <button class="btn" type="submit"
                         [class.btn--primary]="a !== 'cancel'" [class.btn--danger]="a === 'cancel'" [disabled]="saving()">
-                  {{ saving() ? 'Working…' : confirming() ? 'Yes, ' + actionLabel(a).toLowerCase() : actionLabel(a) }}
+                  {{ saving() ? 'Working…' : actionLabel(a) }}
                 </button>
               </form>
             }
@@ -110,5 +105,17 @@
         }
       </div>
     </div>
+  }
+
+  @if (confirming() && result(); as r) {
+    <app-confirm-dialog
+      [title]="action() === 'cancel' ? 'Cancel ' + r.tracking_id + '?' : 'Redirect ' + r.tracking_id + '?'"
+      [facts]="confirmFacts()"
+      [danger]="action() === 'cancel'"
+      [typeToConfirm]="action() === 'cancel' ? r.tracking_id : null"
+      [confirmLabel]="action() === 'cancel' ? 'Yes, cancel this shipment' : 'Yes, redirect it'"
+      [busy]="saving()"
+      (confirm)="submit()"
+      (cancel)="confirming.set(false)" />
   }
 </div>

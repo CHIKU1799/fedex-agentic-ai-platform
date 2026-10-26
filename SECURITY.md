@@ -30,6 +30,36 @@ authorization, and microphone consent).
 Demo credentials (development only): `agent / fedex-agent-demo`,
 `cust001 / cust001-demo`, `cust002 / cust002-demo`, `cust003 / cust003-demo`.
 
+## 1b. Agent governance (the model cannot overstep)
+
+- **Autonomy tiers live in code** (`app/agents/agent_tools.py`, `AUTONOMY_TIERS`):
+  read-only tools act silently; reversible changes act then inform; high-impact
+  changes (redirect, cancel) are **refused by the tool** until the customer has
+  confirmed. The UI turns that refusal into a verification pop-up with one
+  clear yes or no; the Shipments screen asks the same way, and cancelling makes
+  the customer type the tracking number.
+- **The confirmation is held by the platform, not the model**
+  (`app/agents/confirmations.py`). A refusal records what was asked, scoped to
+  user + session, and the turn is locked so the model can only ask. The gate
+  opens only when the customer's *own next message* says yes, and only for
+  that exact tool and shipment. A `confirmed=true` argument from the model is
+  stripped and ignored. This closed a live bypass found in testing, where the
+  model retried with `confirmed=true` in the same turn.
+- **Conversation memory is scoped to the signed-in user** as well as the
+  client session id, so a guessed or shared session id never exposes another
+  customer's history or pending confirmation.
+- **Every mutation is verified** by re-reading the row (`_VERIFY_CHECKS`)
+  before success is reported; a mismatch is returned as an error the model
+  must relay honestly.
+- **Integrity guard** (`app/agents/planner_agent.py`): if the customer asked
+  for a change, no mutating tool ran, and the reply still claims completion,
+  the planner gives the model one correction round and otherwise replaces the
+  reply with an honest one. The response carries `integrity: clean |
+  corrected | overridden` and the UI shows the correction.
+- **Every action is logged** (`agent_events`) with who, what, outcome and
+  verification, surfaced to customers under Updates and to agents under
+  Operations.
+
 ## 2. CORS
 
 - Explicit allow-list from `ALLOWED_ORIGINS` (default `http://localhost:4200`).
@@ -39,10 +69,28 @@ Demo credentials (development only): `agent / fedex-agent-demo`,
 
 ## 3. HTTP security headers
 
-Applied to every response via `SecurityHeadersMiddleware`
+API responses get them from `SecurityHeadersMiddleware`
 (`backend/app/core/middleware.py`): `X-Content-Type-Options: nosniff`,
-`X-Frame-Options: DENY`, `Content-Security-Policy`, `Referrer-Policy`,
-`Strict-Transport-Security`.
+`X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'`,
+`Referrer-Policy`, `Strict-Transport-Security`.
+
+The static Angular app gets its own set from `vercel.json` `headers`: a
+strict **Content-Security-Policy** (`script-src 'self'`, `connect-src 'self'`,
+fonts only from Google Fonts, `object-src 'none'`, `frame-ancestors 'none'`,
+`upgrade-insecure-requests`), HSTS with preload, `Permissions-Policy`
+(microphone only for the app itself; camera, geolocation, payment denied),
+`Cross-Origin-Opener-Policy`, `X-Frame-Options`, `Referrer-Policy: no-referrer`.
+
+## 3b. Sessions in the browser
+
+- The access token is kept in **sessionStorage**, so it ends with the tab and
+  never lingers in a shared browser. Its expiry is read from the JWT and shown
+  in the app rail ("Session ends in 42 min").
+- A `401` from any endpoint, or a token past its expiry, signs the customer
+  out and returns them to sign-in with a plain explanation
+  (`frontend/src/app/auth.interceptor.ts`).
+- Chat replies are rendered through an HTML-escaping formatter plus Angular's
+  sanitizer, so model output cannot inject markup.
 
 ## 4. Rate limiting (abuse / brute-force / LLM-cost control)
 
@@ -82,7 +130,7 @@ Local SAST: `cd backend && bandit -r app -ll` (currently: 0 medium/high issues).
 
 ## 8. Test coverage of security behavior
 
-`backend/tests/` (26 tests, all passing):
+`backend/tests/` (99 tests, all passing):
 - `test_auth_and_authz.py` — token issuance, bad-credential rejection,
   anonymous mutation blocked (401), cross-customer access blocked (403),
   agent override, tampered/invalid token rejection.
@@ -92,6 +140,12 @@ Local SAST: `cd backend && bandit -r app -ll` (currently: 0 medium/high issues).
   injection-style tracking ID rejected with 422).
 - `test_security_middleware.py` — headers present, CORS not wildcard,
   rate-limit returns 429.
+- `test_integrity_guard.py` — an unbacked "Done!" is corrected into a real,
+  verified action or replaced with an honest reply; tier-3 refusals are
+  flagged for the confirmation pop-up; honest questions are not flagged.
+- `test_confirmation_gate.py` — the model cannot self-confirm in the same
+  turn or with a `confirmed` flag; a "no" clears the ask; a "yes" covers only
+  the shipment asked about; sessions are scoped per user.
 
 ## Threat-model notes / follow-ups
 

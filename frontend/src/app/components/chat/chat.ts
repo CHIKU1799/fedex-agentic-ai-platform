@@ -15,6 +15,17 @@ interface TrackingCard {
 interface ActionChip {
   tool: string;
   ok: boolean;
+  verified?: boolean;
+  requiresConfirmation?: boolean;
+  trackingId?: string;
+  arguments?: Record<string, any>;
+}
+
+interface PendingConfirmation {
+  tool: string;
+  trackingId: string;
+  summary: string;
+  detail: string;
 }
 
 interface WeatherReport {
@@ -53,6 +64,12 @@ interface ChatMessage {
   notificationCreated?: boolean;
   outlook?: DeliveryOutlook;
   journey?: JourneyData;
+  /** The agent needs an explicit yes before a high-impact change. */
+  confirmation?: PendingConfirmation;
+  /** The platform caught and corrected an unbacked claim in this reply. */
+  integrity?: 'corrected' | 'overridden';
+  /** Rendered once the customer has answered the confirmation. */
+  confirmationAnswered?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -104,6 +121,9 @@ export class ChatComponent {
 
   @ViewChild('scrollAnchor') scrollAnchor?: ElementRef<HTMLDivElement>;
 
+  /** The customer's latest message, used to interpret the reply. */
+  private lastQuery = '';
+
   constructor(private api: ApiService) {}
 
   /** Replies may carry light markdown (bold, lists). Render that safely. */
@@ -129,6 +149,7 @@ export class ChatComponent {
     if (!q || this.loading()) return;
 
     this.messages.update(m => [...m, { role: 'user', text: q }]);
+    this.lastQuery = q;
     this.query.set('');
     this.loading.set(true);
     this.scrollSoon();
@@ -183,9 +204,29 @@ export class ChatComponent {
       msg.text = 'Done.';
     }
 
-    // Action chips (what the agent actually did).
+    // Action chips (what the agent actually did), and whether it verified it.
     if (Array.isArray(resp.actions_taken) && resp.actions_taken.length) {
-      msg.actions = resp.actions_taken.map((a: any) => ({ tool: a.tool, ok: !!a.ok }));
+      const actions: ActionChip[] = resp.actions_taken.map((a: any) => ({
+        tool: a.tool, ok: !!a.ok, verified: !!a.verified,
+        requiresConfirmation: !!a.requires_confirmation,
+        trackingId: a.arguments?.tracking_id, arguments: a.arguments,
+      }));
+      msg.actions = actions;
+      // A tier-3 refusal becomes a verification pop-up: one clear yes or no.
+      const pending = actions.find(a => a.requiresConfirmation);
+      if (pending) msg.confirmation = this.describeConfirmation(pending);
+    }
+    if (resp.integrity === 'corrected' || resp.integrity === 'overridden') {
+      msg.integrity = resp.integrity;
+    }
+    // Fallback: the agent asked for a yes in prose for a cancel or redirect
+    // without calling the tool. Still give the customer the one-tap control.
+    if (!msg.confirmation && !msg.actions?.length && this.lastQuery) {
+      const m = /\b(cancel|redirect)\b[^A-Z]*?(FX\d{3,})/i.exec(this.lastQuery);
+      if (m && /\bconfirm/i.test(msg.text)) {
+        const tool = m[1].toLowerCase() === 'cancel' ? 'cancel_shipment' : 'redirect_package';
+        msg.confirmation = this.describeConfirmation({ tool, ok: false, trackingId: m[2].toUpperCase() });
+      }
     }
 
     // Weather risk card.
@@ -224,6 +265,31 @@ export class ChatComponent {
 
 
     return msg;
+  }
+
+  private describeConfirmation(a: ActionChip): PendingConfirmation {
+    const id = a.trackingId || 'this shipment';
+    if (a.tool === 'cancel_shipment') {
+      return { tool: a.tool, trackingId: id, summary: `Cancel ${id}?`,
+               detail: 'Cancelling cannot be undone. FedE will not cancel until you say yes.' };
+    }
+    const addr = a.arguments?.['new_address'];
+    return { tool: a.tool, trackingId: id, summary: `Redirect ${id}${addr ? ' to ' + addr : ''}?`,
+             detail: 'The package will go to the new address instead. FedE will not redirect until you say yes.' };
+  }
+
+  /** The customer answered the verification pop-up; tell the agent plainly. */
+  answerConfirmation(msg: ChatMessage, yes: boolean): void {
+    if (!msg.confirmation || this.loading()) return;
+    const c = msg.confirmation;
+    msg.confirmationAnswered = true;
+    this.messages.update(m => [...m]);
+    const verb = c.tool === 'cancel_shipment' ? 'cancel' : 'redirect';
+    const addr = msg.actions?.find(a => a.requiresConfirmation)?.arguments?.['new_address'];
+    this.query.set(yes
+      ? `Yes, I confirm: ${verb} ${c.trackingId}${addr ? ' to ' + addr : ''}. Go ahead.`
+      : `No, do not ${verb} ${c.trackingId}. Leave it as it is.`);
+    this.send();
   }
 
   /** Tracking replies get the animated journey map fetched alongside. */

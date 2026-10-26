@@ -45,6 +45,18 @@
 .trail__step { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .trail__mark { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--ok-soft); color: var(--ok); }
 .trail__step--fail .trail__mark { background: var(--bad-soft); color: var(--bad); }
+.trail__step--hold .trail__mark { background: var(--warn-soft); color: var(--warn); }
+.trail__verified { font-size: 11px; font-weight: 600; color: var(--ok); background: var(--ok-soft); border-radius: 999px; padding: 1px 7px; }
+
+/* Integrity notice: the platform corrected the agent */
+.integrity { font-size: 13px; color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; }
+
+/* Confirmation card: a yes or no, nothing else */
+.confirm { background: var(--surface); border: 1px solid var(--line-strong); border-left: 4px solid var(--warn); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 280px; }
+.confirm__kicker { font-size: 12.5px; font-weight: 600; color: var(--warn); }
+.confirm__title { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
+.confirm__detail { font-size: 13.5px; color: var(--muted); }
+.confirm__actions { display: flex; gap: 8px; margin-top: 8px; }
 
 /* Tracking card */
 .tcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; min-width: 260px; }

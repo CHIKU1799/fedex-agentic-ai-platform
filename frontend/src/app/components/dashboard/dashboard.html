@@ -39,6 +39,10 @@
           <b>{{ user.username }}</b>
           <em>{{ user.role === 'agent' ? 'FedEx agent' : 'Customer' }}</em>
         </span>
+        <span class="rail__session" title="Signed in with a short-lived token. It ends on its own.">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          {{ sessionLabel() }}
+        </span>
         <button class="rail__signout" (click)="signOut()">Sign out</button>
       </div>
     }
@@ -53,3 +57,4 @@
 </div>
 
 <app-voice-sidebar #voiceSidebar />
+<app-toasts />

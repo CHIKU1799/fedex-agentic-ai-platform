@@ -15,10 +15,13 @@ arguments from free text.
 """
 import json
 import re
+from typing import Optional
+import re
 
 from sqlalchemy.orm import Session
 
-from app.agents.agent_tools import TOOL_SCHEMAS, execute_tool
+from app.agents import confirmations
+from app.agents.agent_tools import TOOL_SCHEMAS, execute_tool, AUTONOMY_TIERS
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.core.security import User
@@ -43,8 +46,18 @@ _SYSTEM_PROMPT = (
     "risk is high, chain suggest_delivery_dates to propose the earliest "
     "low-risk date, or offer hold_at_location for pickup instead. When "
     "the user refers to their packages without a tracking ID, use "
-    "list_customer_shipments to find them. Always confirm a destructive action "
-    "(cancellation) before performing it. If a tool returns an error (e.g. not "
+    "list_customer_shipments to find them. HIGH-IMPACT ACTIONS (redirect_package, "
+    "cancel_shipment): call the tool right away; the platform refuses the first "
+    "call and shows the customer a confirmation control. Then ask in one short "
+    "sentence and stop; do not call it again in that turn. Once the customer's "
+    "own next message says yes, the same call succeeds. Never ask for "
+    "confirmation in prose instead of calling the tool. REVERSIBLE ACTIONS (reschedule_delivery, hold_at_location, "
+    "set_delivery_commitment, save_customer_preference): act immediately, then "
+    "tell the customer what changed; for hold_at_location use the nearest "
+    "facility unless the customer named one, and do not ask clarifying "
+    "questions when the request is clear. Never say a change is done unless a "
+    "tool call in this turn returned ok; if you have not acted yet, say so. "
+    "If a tool returns an error (e.g. not "
     "authorized, or a shipment cannot be cancelled), explain it plainly and do "
     "not retry the same call. Use conversation history to resolve references "
     "like 'it' or 'that one'. Keep replies concise and friendly. Tracking IDs "
@@ -78,11 +91,56 @@ _SYSTEM_PROMPT = (
     "if an option only helps FedEx, do not push it. Cost avoided is a "
     "byproduct to report, never the reason to choose. (3) a "
     "recommendation is not permission: high-impact actions (redirect, "
-    "cancel) are autonomy tier 3 and the tools will refuse until you ask "
-    "the customer and retry with confirmed=true. Tools verify mutations by "
+    "cancel) are autonomy tier 3 and the tools refuse until the customer "
+    "has confirmed in their own words. Tools verify mutations by "
     "re-reading state; if a tool reports verification failed, tell the "
     "customer honestly that the change was not applied."
 )
+
+
+# ── Integrity guard: a claim of change must be backed by a tool call ──
+# Tools verify every mutation by re-reading state, but a model can still
+# *say* "Done!" without calling any tool. This guard catches that: when
+# the customer asked for a change, no mutating tool ran this turn, and the
+# reply claims completion, the model gets exactly one correction round
+# (call the tool, or answer honestly). If it still claims, the reply is
+# replaced with an honest one. Policy lives in code, not in the prompt.
+_MUTATING_TOOLS = {
+    "reschedule_delivery", "hold_at_location", "redirect_package", "cancel_shipment",
+    "set_delivery_commitment", "create_support_case", "save_customer_preference",
+}
+_CHANGE_REQUEST_RE = re.compile(
+    r"\b(reschedul|re-schedul|move|change|hold|pick ?up|redirect|cancel|deliver it|send it|"
+    r"ship it|bring it|set (it|that) (to|for)|before (mon|tue|wed|thu|fri|sat|sun)|remember)",
+    re.I,
+)
+_COMPLETION_CLAIM_RE = re.compile(
+    r"\b(done|all set|is now (held|scheduled|set|on hold|going|headed)|now (held|scheduled|set)|"
+    r"has been (rescheduled|re-scheduled|held|redirected|cancell?ed|updated|changed|moved|set)|"
+    r"(i've|i have|i) (rescheduled|re-scheduled|held|redirected|cancell?ed|updated|changed|moved|set up|opened|saved)|"
+    r"(rescheduled|redirected|cancell?ed|held) (it|that|your|the)\b|successfully)",
+    re.I,
+)
+_INTEGRITY_NUDGE = (
+    "[Integrity check from the FedE platform, not from the customer] Your last reply "
+    "claims that a change was made, but no tool ran in this turn, so nothing has changed "
+    "in FedEx systems. Either call the correct tool now to make the change, or rewrite "
+    "your reply to say plainly that the change has not been made yet and ask whether to "
+    "proceed. Never claim an action you did not perform. Do not mention this check."
+)
+_HONEST_FALLBACK = (
+    "I have not made that change yet. If you want me to go ahead, say so and I will do it "
+    "now and confirm once FedEx systems show the new state."
+)
+
+
+def _unbacked_claim(query: str, text: str, actions_taken: list) -> bool:
+    """True when the reply claims a change that no successful mutating tool backs."""
+    if not text or not _CHANGE_REQUEST_RE.search(query or ""):
+        return False
+    if any(a.get("ok") and a.get("tool") in _MUTATING_TOOLS for a in actions_taken):
+        return False
+    return bool(_COMPLETION_CLAIM_RE.search(text))
 
 
 def _empty_usage() -> dict:
@@ -129,8 +187,15 @@ def _preferences_context(db: Session, user: User) -> str:
     return f" Known preferences for this customer (use them when proposing options): {rendered}."
 
 
-def _run_agentic(provider, query: str, db: Session, user: User, history: list) -> dict:
-    """Provider-agnostic tool-calling loop (Anthropic or Groq)."""
+def _run_agentic(provider, query: str, db: Session, user: User, history: list,
+                 session_key: str = "", grant: Optional[dict] = None) -> dict:
+    """Provider-agnostic tool-calling loop (Anthropic or Groq).
+
+    ``grant`` is the platform's record that the customer confirmed one
+    specific tier-3 action in this very message; it is the only thing that
+    lets such a tool run. After a tier-3 refusal the turn is locked: the
+    model may only ask, never retry.
+    """
     system = (
         _SYSTEM_PROMPT
         + f" The authenticated caller has role='{user.role}', customer_id={user.customer_id}."
@@ -141,19 +206,35 @@ def _run_agentic(provider, query: str, db: Session, user: User, history: list) -
     actions_taken = []
     structured_result = None
     usage = _empty_usage()
+    integrity = "clean"
+    awaiting_confirmation = False  # set after a tier-3 refusal; locks the turn
+    locked_retries = 0
 
     for _ in range(_MAX_TOOL_ROUNDS):
         turn = provider.chat(system, messages, TOOL_SCHEMAS)
         _add_usage(usage, turn)
 
         if not turn.tool_calls:
+            text = turn.text
+            if _unbacked_claim(query, text, actions_taken):
+                if integrity == "clean":
+                    # One correction round: the model may still act, or come clean.
+                    integrity = "corrected"
+                    logger.warning("Integrity guard: reply claimed a change with no tool call; nudging.")
+                    messages.extend(provider.assistant_messages(turn))
+                    messages.append({"role": "user", "content": _INTEGRITY_NUDGE})
+                    continue
+                integrity = "overridden"
+                logger.warning("Integrity guard: claim persisted after nudge; replacing reply.")
+                text = _HONEST_FALLBACK
             return {
                 "intent": "agentic",
                 "actions_taken": actions_taken,
                 "data": structured_result or {},
-                "response": turn.text,
+                "response": text,
                 "llm_provider": provider.name,
                 "usage": usage,
+                "integrity": integrity,
             }
 
         messages.extend(provider.assistant_messages(turn))
@@ -161,8 +242,28 @@ def _run_agentic(provider, query: str, db: Session, user: User, history: list) -
         tool_results = []
         for call in turn.tool_calls:
             logger.info(f"Agent tool call: {call.name}({call.args}) as {user.role}")
-            outcome = execute_tool(call.name, call.args, db, user, provider=provider.name)
-            actions_taken.append({"tool": call.name, "arguments": call.args, "ok": outcome.get("ok", False)})
+            call_tid = str((call.args or {}).get("tracking_id", "") or "").upper()
+            if awaiting_confirmation and AUTONOMY_TIERS.get(call.name, 1) >= 3:
+                # The turn is locked: the customer has not answered yet.
+                locked_retries += 1
+                outcome = {"ok": False, "requires_confirmation": True,
+                           "error": "Locked: the customer has not confirmed yet. Ask them and stop."}
+            else:
+                confirmed = bool(grant and grant.get("tool") == call.name
+                                 and grant.get("tracking_id") == call_tid)
+                outcome = execute_tool(call.name, call.args, db, user, provider=provider.name,
+                                       confirmed_by_customer=confirmed)
+            entry = {"tool": call.name, "arguments": call.args, "ok": outcome.get("ok", False)}
+            if outcome.get("requires_confirmation"):
+                entry["requires_confirmation"] = True
+                if not awaiting_confirmation:
+                    awaiting_confirmation = True
+                    confirmations.remember(session_key, call.name, call_tid)
+            if outcome.get("ok") and isinstance(outcome.get("result"), dict) and outcome["result"].get("verified"):
+                entry["verified"] = True
+            if not outcome.get("ok") and outcome.get("error"):
+                entry["error"] = str(outcome["error"])[:200]
+            actions_taken.append(entry)
             if outcome.get("ok") and "result" in outcome:
                 structured_result = outcome["result"]
             tool_results.append(
@@ -174,6 +275,21 @@ def _run_agentic(provider, query: str, db: Session, user: User, history: list) -
             )
         messages.extend(provider.tool_result_messages(tool_results))
 
+        if locked_retries >= 2:
+            # The model keeps trying instead of asking. The platform asks.
+            p = confirmations.pending(session_key) or {}
+            verb = "cancel" if p.get("tool") == "cancel_shipment" else "redirect"
+            return {
+                "intent": "agentic",
+                "actions_taken": actions_taken,
+                "data": structured_result or {},
+                "response": (f"Before I {verb} {p.get('tracking_id') or 'this shipment'}, I need your "
+                             "confirmation. Do you want me to go ahead?"),
+                "llm_provider": provider.name,
+                "usage": usage,
+                "integrity": "locked",
+            }
+
     logger.warning("Agentic loop hit max tool rounds without a final answer.")
     return {
         "intent": "agentic",
@@ -182,6 +298,7 @@ def _run_agentic(provider, query: str, db: Session, user: User, history: list) -
         "response": "I've taken the actions I could. Please let me know if you need anything else.",
         "llm_provider": provider.name,
         "usage": usage,
+        "integrity": integrity,
     }
 
 
@@ -457,10 +574,10 @@ def _run_fallback(query: str, db: Session, user: User) -> dict:
 
     guidance = {
         "redirect": "Redirecting a package is a high-impact change, so I only do it after an "
-                    "explicit confirmation. Use the Actions tab to redirect, or ask again once "
+                    "explicit confirmation. Use the Shipments screen to redirect, or ask again once "
                     "the AI planner is online.",
         "cancel": "Cancelling is a high-impact change, so I only do it after an explicit "
-                  "confirmation. Use the Actions tab to cancel, or ask again once the AI "
+                  "confirmation. Use the Shipments screen to cancel, or ask again once the AI "
                   "planner is online.",
     }
     if intent in guidance:
@@ -485,10 +602,14 @@ def handle_user_query(query: str, db: Session, user: User, session_id: str = "")
     try:
         for provider in _provider_chain():
             try:
-                history = conversation_store.get_history(session_id)
-                result = _run_agentic(provider, query, db, user, history)
+                # History and confirmations are scoped to user + session, so a
+                # guessed or shared session_id can never reach another account.
+                key = confirmations.session_key(user.username, session_id)
+                history = conversation_store.get_history(key if session_id else "")
+                grant = confirmations.resolve(key, query)
+                result = _run_agentic(provider, query, db, user, history, session_key=key, grant=grant)
                 # Persist only the final user/assistant text — not tool scaffolding.
-                conversation_store.append_turn(session_id, query, result.get("response", ""))
+                conversation_store.append_turn(key if session_id else "", query, result.get("response", ""))
                 return result
             except ProviderBillingError as exc:
                 # Out of credits / bad key: demote for this process and try

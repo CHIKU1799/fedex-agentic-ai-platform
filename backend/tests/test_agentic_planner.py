@@ -30,9 +30,11 @@ def test_agent_executes_real_reschedule(client, monkeypatch, cust001_auth):
     assert r.status_code == 200
     body = r.json()["response"]
     assert body["intent"] == "agentic"
-    assert body["actions_taken"][0] == {"tool": "reschedule_delivery",
-                                        "arguments": {"tracking_id": "FX100001", "new_date": "2026-12-01"},
-                                        "ok": True}
+    first = body["actions_taken"][0]
+    assert first["tool"] == "reschedule_delivery"
+    assert first["arguments"] == {"tracking_id": "FX100001", "new_date": "2026-12-01"}
+    assert first["ok"] is True
+    assert first["verified"] is True  # the tool re-read the row before claiming success
     # The real mutation happened:
     assert client.get("/track/FX100001").json()["eta"] == "2026-12-01"
     assert client.get("/track/FX100001").json()["status"] == "rescheduled"

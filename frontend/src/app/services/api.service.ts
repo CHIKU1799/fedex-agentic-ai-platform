@@ -11,22 +11,49 @@ const API = ['localhost', '127.0.0.1'].includes(window.location.hostname)
 export interface CurrentUser {
   username: string;
   role: string;
+  /** Unix seconds when the access token expires (from the JWT payload). */
+  exp?: number;
+}
+
+// The session lives in sessionStorage: it survives a reload but ends when
+// the tab closes, so a shared or forgotten browser does not keep a usable
+// token around. The backend's token TTL is the real limit.
+const store = (): Storage | null => (typeof sessionStorage !== 'undefined' ? sessionStorage : null);
+
+/** Read the JWT's expiry without trusting anything else in the payload. */
+function tokenExpiry(token: string): number | undefined {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.exp === 'number' ? payload.exp : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  // Reactive auth state, restored from localStorage on load.
+  // Reactive auth state, restored from sessionStorage on load.
   currentUser = signal<CurrentUser | null>(this.readUser());
 
   constructor(private http: HttpClient) {}
 
   private readUser(): CurrentUser | null {
     try {
-      const raw = localStorage.getItem('fede_user');
-      return raw ? JSON.parse(raw) : null;
+      const raw = store()?.getItem('fede_user');
+      const user = raw ? JSON.parse(raw) as CurrentUser : null;
+      // An expired token is as good as no token: start signed out.
+      if (user?.exp && user.exp * 1000 <= Date.now()) {
+        this.logout();
+        return null;
+      }
+      return user;
     } catch {
       return null;
     }
+  }
+
+  token(): string | null {
+    return store()?.getItem('fede_token') ?? null;
   }
 
   health(): Observable<any> {
@@ -43,17 +70,17 @@ export class ApiService {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     }).pipe(
       tap((res: any) => {
-        localStorage.setItem('fede_token', res.access_token);
-        const user = { username, role: res.role };
-        localStorage.setItem('fede_user', JSON.stringify(user));
+        store()?.setItem('fede_token', res.access_token);
+        const user: CurrentUser = { username, role: res.role, exp: tokenExpiry(res.access_token) };
+        store()?.setItem('fede_user', JSON.stringify(user));
         this.currentUser.set(user);
       })
     );
   }
 
   logout(): void {
-    localStorage.removeItem('fede_token');
-    localStorage.removeItem('fede_user');
+    store()?.removeItem('fede_token');
+    store()?.removeItem('fede_user');
     this.currentUser.set(null);
   }
 

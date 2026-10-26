@@ -24,14 +24,40 @@
           @if (msg.actions?.length) {
             <ol class="trail" aria-label="What FedE did">
               @for (a of msg.actions; track $index) {
-                <li class="trail__step" [class.trail__step--fail]="!a.ok">
-                  <span class="trail__mark">{{ a.ok ? '✓' : '!' }}</span>{{ toolLabel(a.tool) }}
+                <li class="trail__step" [class.trail__step--fail]="!a.ok && !a.requiresConfirmation" [class.trail__step--hold]="a.requiresConfirmation">
+                  <span class="trail__mark">{{ a.ok ? '✓' : a.requiresConfirmation ? '?' : '!' }}</span>
+                  {{ a.requiresConfirmation ? 'Waiting for your confirmation' : toolLabel(a.tool) }}
+                  @if (a.verified) { <span class="trail__verified">verified</span> }
                 </li>
               }
             </ol>
           }
 
           <div class="bubble" [innerHTML]="format(msg.text)"></div>
+
+          @if (msg.integrity) {
+            <p class="integrity">
+              {{ msg.integrity === 'corrected'
+                 ? 'FedE first claimed a change it had not made. The platform caught it and made FedE act or correct itself.'
+                 : 'FedE claimed a change it had not made. The platform replaced that reply. Nothing has changed.' }}
+            </p>
+          }
+
+          <!-- Verification pop-up for high-impact changes -->
+          @if (msg.confirmation && !msg.confirmationAnswered) {
+            <div class="confirm" role="group" [attr.aria-label]="msg.confirmation.summary">
+              <p class="confirm__kicker">{{ msg.confirmation.tool === 'cancel_shipment' ? 'Cannot be undone' : 'Please confirm' }}</p>
+              <p class="confirm__title">{{ msg.confirmation.summary }}</p>
+              <p class="confirm__detail">{{ msg.confirmation.detail }}</p>
+              <div class="confirm__actions">
+                <button class="btn btn--quiet btn--sm" (click)="answerConfirmation(msg, false)" [disabled]="loading()">No, leave it</button>
+                <button class="btn btn--sm" [class.btn--danger]="msg.confirmation.tool === 'cancel_shipment'" [class.btn--primary]="msg.confirmation.tool !== 'cancel_shipment'"
+                        (click)="answerConfirmation(msg, true)" [disabled]="loading()">
+                  {{ msg.confirmation.tool === 'cancel_shipment' ? 'Yes, cancel it' : 'Yes, redirect it' }}
+                </button>
+              </div>
+            </div>
+          }
 
           @if (msg.card) {
             <div class="tcard">

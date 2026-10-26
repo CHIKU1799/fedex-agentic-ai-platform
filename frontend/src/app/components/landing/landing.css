@@ -1,5 +1,5 @@
 .landing { background: var(--surface); color: var(--ink); }
-.landing .nav__inner, .hero__inner, .does__inner, .how__inner, .foot {
+.landing .nav__inner, .hero__inner, .does__inner, .how__inner, .secure__inner, .foot {
   max-width: 1080px;
   margin: 0 auto;
   padding-left: 24px;
@@ -84,6 +84,15 @@
 .how__steps p { margin-top: 6px; color: var(--muted); line-height: 1.5; }
 .how__cta { margin-top: 40px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .how__hint { color: var(--muted); font-size: 14px; }
+
+/* ── Security ────────────────────────────────────── */
+.secure { padding: 72px 0 80px; background: var(--purple); color: #fff; }
+.secure h2 { color: #fff; font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -0.025em; }
+.secure__lede { margin-top: 12px; color: rgba(255,255,255,.78); font-size: 17px; max-width: 36em; }
+.secure__list { margin-top: 36px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px 32px; }
+.secure__list dt { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: #fff; }
+.secure__list dd { margin-top: 6px; color: rgba(255,255,255,.78); line-height: 1.55; font-size: 14.5px; }
+@media (max-width: 900px) { .secure__list { grid-template-columns: 1fr; gap: 20px; } }
 
 /* ── Footer ──────────────────────────────────────── */
 .foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 24px; padding-bottom: 28px; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); }

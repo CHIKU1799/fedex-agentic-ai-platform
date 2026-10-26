@@ -434,7 +434,7 @@ export class VoiceSidebarComponent implements AfterViewInit {
   // Attach the bearer token when the customer is signed in. Mutating
   // actions require it; anonymous callers can still track publicly.
   private authHeaders(): Record<string, string> {
-    const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('fede_token') : null;
+    const token = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('fede_token') : null;
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 

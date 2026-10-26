@@ -57,7 +57,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "redirect_package",
-        "description": "Change the delivery address for a shipment. HIGH-IMPACT (autonomy tier 3): the tool refuses unless confirmed=true, so ask the customer to confirm the exact new address first, then retry with confirmed=true.",
+        "description": "Change the delivery address for a shipment. HIGH-IMPACT (autonomy tier 3): call it as soon as you know the new address. The platform refuses the first call and shows the customer a confirmation control; ask in one short sentence and stop. Only after the customer's own next message says yes will the same call succeed.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -67,10 +67,6 @@ TOOL_SCHEMAS = [
                 "new_address": {
                     "type": "string",
                     "description": "Full new delivery address."
-                },
-                "confirmed": {
-                    "type": "boolean",
-                    "description": "Set true only after the customer explicitly confirmed this redirect in the conversation."
                 }
             },
             "required": [
@@ -81,7 +77,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "cancel_shipment",
-        "description": "Cancel a shipment. HIGH-IMPACT (autonomy tier 3): the tool refuses unless confirmed=true, so ask the customer to confirm the cancellation first, then retry with confirmed=true.",
+        "description": "Cancel a shipment. HIGH-IMPACT (autonomy tier 3): call it right away. The platform refuses the first call and shows the customer a confirmation control; ask in one short sentence and stop. Only after the customer's own next message says yes will the same call succeed.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -91,10 +87,6 @@ TOOL_SCHEMAS = [
                 "reason": {
                     "type": "string",
                     "description": "Optional cancellation reason."
-                },
-                "confirmed": {
-                    "type": "boolean",
-                    "description": "Set true only after the customer explicitly confirmed the cancellation in the conversation."
                 }
             },
             "required": [
@@ -416,14 +408,21 @@ def _dispatch(name: str, arguments: dict, db: Session, user: User):
     raise KeyError(f"unknown tool {name}")
 
 
-def execute_tool(name: str, arguments: dict, db: Session, user: User, provider: str = "") -> dict:
+def execute_tool(name: str, arguments: dict, db: Session, user: User, provider: str = "",
+                 confirmed_by_customer: bool = False) -> dict:
     """
     Execute one tool call through the governance pipeline:
     tier check -> execute -> verify (read back) -> audit log.
     Authorization and business-rule failures are returned as
     ``{"error": ...}`` so the model can relay them politely instead of
     the request 500-ing.
+
+    ``confirmed_by_customer`` is set by the platform (see
+    ``confirmations.resolve``) when the customer's own message confirmed
+    this exact action. Anything the model puts in ``arguments`` (such as a
+    ``confirmed`` flag) is ignored for the tier-3 gate.
     """
+    arguments = {k: v for k, v in (arguments or {}).items() if k != "confirmed"}
     if name not in AUTONOMY_TIERS:
         return {"ok": False, "error": f"Unknown tool: {name}"}
     tier = AUTONOMY_TIERS[name]
@@ -443,15 +442,17 @@ def execute_tool(name: str, arguments: dict, db: Session, user: User, provider: 
         record_agent_event(db, user.username, user.role, name, ok, provider,
                            tracking_id, customer_id, note, cost)
 
-    # Tier-3 gate: the tool itself demands explicit customer confirmation.
-    if tier >= 3 and not arguments.get("confirmed"):
+    # Tier-3 gate: only the customer's own confirmation, held by the
+    # platform, opens it. The model cannot grant it to itself.
+    if tier >= 3 and not confirmed_by_customer:
         _log(False, "Blocked pending customer confirmation (autonomy tier 3)")
         return {
             "ok": False,
             "requires_confirmation": True,
             "autonomy_tier": tier,
-            "error": (f"{name} is a high-impact action (autonomy tier 3). Ask the customer to "
-                      "explicitly confirm it, then call again with confirmed=true."),
+            "error": (f"{name} is a high-impact action (autonomy tier 3). The customer has not "
+                      "confirmed it yet. Ask them in one short sentence and stop; do not call "
+                      "this tool again in this turn. It will succeed once their next message says yes."),
         }
 
     try:

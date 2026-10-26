@@ -3,6 +3,8 @@ import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { JourneyMapComponent, JourneyData } from '../journey-map/journey-map';
+import { ConfirmDialogComponent } from '../ui/confirm-dialog';
+import { ToastService } from '../ui/toast.service';
 
 interface ShipmentChip {
   tracking_id: string;
@@ -21,7 +23,7 @@ type Action = 'reschedule' | 'hold' | 'redirect' | 'cancel';
 @Component({
   selector: 'app-tracking',
   standalone: true,
-  imports: [FormsModule, CommonModule, JourneyMapComponent],
+  imports: [FormsModule, CommonModule, JourneyMapComponent, ConfirmDialogComponent],
   templateUrl: './tracking.html',
   styleUrl: './tracking.css'
 })
@@ -46,7 +48,7 @@ export class TrackingComponent implements OnInit {
   // Seeded demo IDs shown to agents (customers get their real list).
   private readonly demoIds = ['FX100001', 'FX100002', 'FX100003', 'FX100004', 'FX100005', 'FX100006'];
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private toast: ToastService) {}
 
   ngOnInit(): void {
     const customerId = this.api.ownCustomerId();
@@ -154,6 +156,7 @@ export class TrackingComponent implements OnInit {
         this.saving.set(false);
         this.confirming.set(false);
         this.actionDone.set(this.doneText(action, r));
+        this.toast.show('ok', this.doneText(action, r));
         this.action.set(null);
         // Refresh the card, the chip list and the map with the new state.
         this.api.trackShipment(id).subscribe({ next: (d) => this.result.set(d) });
@@ -165,8 +168,23 @@ export class TrackingComponent implements OnInit {
         this.saving.set(false);
         this.confirming.set(false);
         this.actionError.set(e.error?.detail || 'That change did not go through. Try again or ask FedE.');
+        this.toast.show('bad', 'The change was not applied.');
       }
     });
+  }
+
+  /** Facts shown in the verification pop-up: exactly what is about to change. */
+  confirmFacts(): { label: string; value: string }[] {
+    const r = this.result();
+    if (!r) return [];
+    const facts = [{ label: 'Shipment', value: r.tracking_id }, { label: 'Status now', value: this.statusLabel(r.status) }];
+    if (this.action() === 'redirect') {
+      facts.push({ label: 'From', value: r.destination }, { label: 'To', value: this.newAddress().trim() });
+    } else {
+      facts.push({ label: 'Going to', value: r.destination });
+      if (this.reason().trim()) facts.push({ label: 'Reason', value: this.reason().trim() });
+    }
+    return facts;
   }
 
   private doneText(action: Action, r: any): string {

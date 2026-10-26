@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api.service';
 
 interface DemoCred { label: string; username: string; password: string; role: string; hint: string; }
@@ -26,8 +26,12 @@ export class SignInComponent {
   error = signal('');
   loading = signal(false);
   demoCreds = DEMO_CREDS;
+  /** Set when the app sent the user here because their session ended. */
+  reason = signal('');
 
-  constructor(private api: ApiService, private router: Router) {}
+  constructor(private api: ApiService, private router: Router, route: ActivatedRoute) {
+    route.queryParamMap.subscribe(q => this.reason.set(q.get('reason') || ''));
+  }
 
   fill(cred: DemoCred): void {
     this.username.set(cred.username);

@@ -10,6 +10,9 @@
     <div class="signin__card">
       <h2>Sign in</h2>
       <p class="signin__sub">Customers see their own packages. FedEx agents see every shipment.</p>
+      @if (reason() === 'expired') {
+        <p class="notice notice--warn">Your session ended, so you were signed out. Sign in again to continue.</p>
+      }
 
       <div class="field">
         <label for="si-user">Username</label>

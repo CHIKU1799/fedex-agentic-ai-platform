@@ -407,13 +407,20 @@ def test_tier3_cancel_blocked_without_confirmation(client, monkeypatch, cust001_
 
 
 def test_tier3_cancel_with_confirmation_executes_and_verifies(client, monkeypatch, cust001_auth):
+    # Turn 1: the model asks (tool refused, platform remembers the ask).
     fake = FakeAnthropic([
-        msg(tool_calls=[tool_call("t1", "cancel_shipment",
-                                  json.dumps({"tracking_id": "FX100001", "confirmed": True}))]),
+        msg(tool_calls=[tool_call("t1", "cancel_shipment", json.dumps({"tracking_id": "FX100001"}))]),
+        msg("Do you want me to cancel FX100001?"),
+        # Turn 2: the customer said yes in their own words; the same call now succeeds.
+        msg(tool_calls=[tool_call("t2", "cancel_shipment", json.dumps({"tracking_id": "FX100001"}))]),
         msg("Done, cancelled."),
     ])
     monkeypatch.setattr(planner, "get_llm_client", lambda: fake)
-    resp = client.post("/ask", json={"query": "yes, cancel FX100001"}, headers=cust001_auth)
+    sid = "tier3-yes"
+    first = client.post("/ask", json={"query": "cancel FX100001", "session_id": sid}, headers=cust001_auth)
+    assert first.json()["response"]["actions_taken"][0]["requires_confirmation"] is True
+    assert client.get("/track/FX100001").json()["status"] == "in_transit"
+    resp = client.post("/ask", json={"query": "yes, cancel FX100001", "session_id": sid}, headers=cust001_auth)
     body = resp.json()["response"]
     assert body["actions_taken"][0]["ok"] is True
     assert body["data"]["verified"] is True
